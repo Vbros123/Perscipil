@@ -105,18 +105,6 @@ privatelens/
 | Supply Chain & Vendor Signals | 3% | Simulated → RiskMethods |
 | Government Contract Awards | 1% | **Live** (USASpending.gov) |
 
----
-
-## Pre-Seed Ask — $500K
-
-| Use of Funds | Amount |
-|---|---|
-| Engineering (2 engineers × 12 months) | $260,000 |
-| Data licensing (UCC, court, banking APIs) | $120,000 |
-| Go-to-market & sales | $80,000 |
-| Legal, compliance, infrastructure | $40,000 |
-
----
 
 Built by **Vijith Velamuri** · Sophomore · Cary, NC  
 [privatelens.vercel.app](https://privatelens.vercel.app) · vijithvelamuri@gmail.com
