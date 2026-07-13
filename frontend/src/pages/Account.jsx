@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { changePassword } from '../api/auth'
 import ErrorNotice from '../components/common/ErrorNotice'
 import PageHeader from '../components/common/PageHeader'
 import { useAuth } from '../context/AuthContext'
@@ -15,6 +16,8 @@ export default function Account() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '' })
+  const [passwordLoading, setPasswordLoading] = useState(false)
   const update = (field) => (event) => setForm({ ...form, [field]: event.target.value })
 
   const submit = async (event) => {
@@ -29,6 +32,22 @@ export default function Account() {
       setError(err.message || 'Unable to update account.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const submitPassword = async (event) => {
+    event.preventDefault()
+    setError('')
+    setMessage('')
+    setPasswordLoading(true)
+    try {
+      await changePassword(passwordForm)
+      setPasswordForm({ current_password: '', new_password: '' })
+      setMessage('Password changed. Sign in again on other devices.')
+    } catch (err) {
+      setError(err.message || 'Unable to change password.')
+    } finally {
+      setPasswordLoading(false)
     }
   }
 
@@ -50,6 +69,31 @@ export default function Account() {
           <label>Role<input value={form.role} onChange={update('role')} /></label>
         </div>
         <button className="btn btn-primary" disabled={loading}>{loading ? 'Saving' : 'Save profile'}</button>
+      </form>
+      <form className="panel form-stack" onSubmit={submitPassword}>
+        <div>
+          <div className="eyebrow">Security</div>
+          <h2>Change password</h2>
+        </div>
+        <label>Current password
+          <input
+            type="password"
+            value={passwordForm.current_password}
+            onChange={(event) => setPasswordForm({ ...passwordForm, current_password: event.target.value })}
+            required
+          />
+        </label>
+        <label>New password
+          <input
+            type="password"
+            minLength={12}
+            value={passwordForm.new_password}
+            onChange={(event) => setPasswordForm({ ...passwordForm, new_password: event.target.value })}
+            required
+          />
+          <small className="field-help">Use at least 12 characters with a mix of uppercase, lowercase, numbers, or symbols.</small>
+        </label>
+        <button className="btn btn-primary" disabled={passwordLoading}>{passwordLoading ? 'Updating' : 'Change password'}</button>
       </form>
     </div>
   )

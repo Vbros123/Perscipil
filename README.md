@@ -11,11 +11,12 @@ PrivateLens is a research tool and does not provide credit, investment, legal, o
 ## Product Surface
 
 - Account signup, login, JWT sessions, and `/api/auth/me`
+- Password reset, password change, email verification scaffolding, and auth audit events
 - PrivateScore company reports with live/modelled signal labels
 - User-specific history and saved company watchlists
 - Peer comparison for two to four companies
 - Workspace settings, account profile, pricing, and developer pages
-- SQLite by default, with `DATABASE_URL` support for Postgres-style deployments
+- Alembic migrations, SQLite locally, and Postgres-ready `DATABASE_URL` support
 
 ## Repository Structure
 
@@ -28,6 +29,9 @@ backend/
     limiter.py
     cache.py
     security.py
+  alembic/
+    env.py
+    versions/
   models/
     user.py
     company.py
@@ -92,8 +96,11 @@ Vite runs on `http://localhost:3001`.
 | `DATABASE_URL` | No | `sqlite:///./privatelens.db` | Use Postgres or a Render persistent disk in production. |
 | `JWT_SECRET` | Yes in production | `change-this-in-production` | Set a long random secret. |
 | `JWT_EXPIRES_MINUTES` | No | `10080` | Default is seven days. |
+| `AUTH_TOKEN_RETURN_IN_RESPONSE` | No | `false` | Test/dev only. Never enable in production. |
 | `ALLOWED_ORIGINS` | No | `*` | Comma-separated origins, for example `https://privatelens.vercel.app`. |
 | `FRONTEND_URL` | No | `http://localhost:5173` | Added to CORS when `ALLOWED_ORIGINS` is not `*`. |
+| `ALLOWED_HOSTS` | No | `*` | Set to `privatelens.onrender.com` in production. |
+| `AUTO_CREATE_TABLES` | No | `true` | Use `false` in production and run Alembic migrations instead. |
 | `HTTP_TIMEOUT` | No | `8.0` | External collector timeout. |
 | `RATE_LIMIT_PER_MINUTE` | No | `30` | Per-IP score/compare rate limit. |
 
@@ -109,6 +116,12 @@ Vite runs on `http://localhost:3001`.
 |---|---|---|
 | `POST` | `/api/auth/signup` | Create account and return bearer token |
 | `POST` | `/api/auth/login` | Log in and return bearer token |
+| `POST` | `/api/auth/logout` | Record logout audit event |
+| `POST` | `/api/auth/change-password` | Change password and invalidate sessions |
+| `POST` | `/api/auth/request-password-reset` | Issue reset token through configured delivery |
+| `POST` | `/api/auth/reset-password` | Reset password with token |
+| `POST` | `/api/auth/request-email-verification` | Issue email verification token |
+| `POST` | `/api/auth/verify-email` | Verify email with token |
 | `GET` | `/api/auth/me` | Current authenticated user |
 | `PATCH` | `/api/users/me` | Update profile |
 | `GET` | `/api/score?company=NAME` | Score a company and return a report |
@@ -136,11 +149,14 @@ Authorization: Bearer <token>
 ### Render Backend
 
 1. Build command: `pip install -r requirements.txt`
-2. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-3. Root directory: `backend`
-4. Set `JWT_SECRET` to a strong production value.
-5. Set `ALLOWED_ORIGINS=https://privatelens.vercel.app`.
-6. Set `DATABASE_URL` to a managed Postgres URL or attach a persistent disk if using SQLite.
+2. Production build command: `pip install -r requirements.txt && alembic upgrade head`
+3. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+4. Root directory: `backend`
+5. Set `JWT_SECRET` to a strong production value.
+6. Set `ALLOWED_ORIGINS=https://privatelens.vercel.app`.
+7. Set `ALLOWED_HOSTS=privatelens.onrender.com`.
+8. Set `AUTO_CREATE_TABLES=false`.
+9. Set `DATABASE_URL` to a managed Postgres URL or attach a persistent disk if using SQLite.
 
 SQLite works locally and for demos. Render free instances have ephemeral filesystems unless a disk is attached, so production user data should use Postgres.
 
@@ -168,3 +184,17 @@ npm run build
 ```
 
 Backend smoke testing can be done with FastAPI `TestClient` or by running the server locally and calling signup, login, settings, watchlist, score, history, and compare endpoints.
+
+Backend automated tests:
+
+```bash
+cd backend
+ENVIRONMENT=test JWT_SECRET=test-secret-value-that-is-long-enough-for-production-checks AUTH_TOKEN_RETURN_IN_RESPONSE=true pytest -q
+```
+
+Migrations:
+
+```bash
+cd backend
+alembic upgrade head
+```

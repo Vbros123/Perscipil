@@ -47,6 +47,10 @@ export async function apiRequest(path, options = {}) {
 
   if (!response.ok) {
     const message = typeof payload === 'string' ? payload : payload?.detail || 'PrivateLens API request failed.'
+    if (response.status === 401) {
+      setToken(null)
+      window.dispatchEvent(new CustomEvent('privatelens:session-expired'))
+    }
     throw new ApiError(message, response.status, payload)
   }
 

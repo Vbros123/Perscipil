@@ -9,12 +9,14 @@ import CompanyReport from './pages/CompanyReport'
 import Compare from './pages/Compare'
 import Dashboard from './pages/Dashboard'
 import Developer from './pages/Developer'
+import ForgotPassword from './pages/ForgotPassword'
 import History from './pages/History'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
 import Onboarding from './pages/Onboarding'
 import Pricing from './pages/Pricing'
+import ResetPassword from './pages/ResetPassword'
 import Settings from './pages/Settings'
 import Signup from './pages/Signup'
 import Watchlist from './pages/Watchlist'
@@ -28,6 +30,8 @@ export default function App() {
           <Route element={<PublicRoute />}>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
           </Route>
           <Route element={<ProtectedRoute />}>
             <Route path="/onboarding" element={<Onboarding />} />

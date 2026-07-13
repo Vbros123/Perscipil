@@ -2,11 +2,14 @@
 PrivateLens API v3
 Private company financial health research platform.
 """
+from contextlib import asynccontextmanager
 import logging
+import secrets
 import time
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
 from core.config import get_settings
@@ -23,6 +26,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("privatelens")
 
 settings = get_settings()
+settings.validate_runtime()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.AUTO_CREATE_TABLES:
+        init_db()
+    yield
+
 
 app = FastAPI(
     title="PrivateLens API",
@@ -30,9 +42,14 @@ app = FastAPI(
     version=settings.APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 cors_origins = settings.cors_origins
+trusted_hosts = settings.trusted_hosts
+if trusted_hosts != ["*"]:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -42,17 +59,20 @@ app.add_middleware(
 )
 
 
-@app.on_event("startup")
-def startup_event():
-    init_db()
-
-
 @app.middleware("http")
 async def add_timing_header(request: Request, call_next):
     start = time.perf_counter()
+    request_id = request.headers.get("x-request-id") or secrets.token_hex(12)
     response = await call_next(request)
     ms = round((time.perf_counter() - start) * 1000, 1)
     response.headers["X-Response-Time"] = f"{ms}ms"
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if settings.is_production:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 

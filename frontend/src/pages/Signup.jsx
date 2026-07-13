@@ -51,7 +51,10 @@ export default function Signup() {
             <label>Last name<input value={form.last_name} onChange={update('last_name')} /></label>
           </div>
           <label>Email<input type="email" value={form.email} onChange={update('email')} required /></label>
-          <label>Password<input type="password" minLength={8} value={form.password} onChange={update('password')} required /></label>
+          <label>Password
+            <input type="password" minLength={12} value={form.password} onChange={update('password')} required />
+            <small className="field-help">Use at least 12 characters with a mix of uppercase, lowercase, numbers, or symbols.</small>
+          </label>
           <div className="form-grid">
             <label>Company<input value={form.company} onChange={update('company')} /></label>
             <label>Role<input value={form.role} onChange={update('role')} /></label>

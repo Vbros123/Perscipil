@@ -7,6 +7,12 @@ import PageHeader from '../components/common/PageHeader'
 const endpoints = [
   ['POST', '/api/auth/signup', 'Create account'],
   ['POST', '/api/auth/login', 'Issue bearer token'],
+  ['POST', '/api/auth/logout', 'Record logout audit event'],
+  ['POST', '/api/auth/change-password', 'Rotate password and invalidate sessions'],
+  ['POST', '/api/auth/request-password-reset', 'Issue reset instructions'],
+  ['POST', '/api/auth/reset-password', 'Reset password with token'],
+  ['POST', '/api/auth/request-email-verification', 'Issue verification instructions'],
+  ['POST', '/api/auth/verify-email', 'Verify email with token'],
   ['GET', '/api/auth/me', 'Current user'],
   ['GET', '/api/score?company=NAME', 'Company report'],
   ['GET', '/api/compare?companies=A,B', 'Peer comparison'],

@@ -18,6 +18,7 @@ settings = get_settings()
 bearer = HTTPBearer(auto_error=False)
 PASSWORD_ITERATIONS = 390_000
 PASSWORD_SCHEME = "pbkdf2_sha256"
+TOKEN_HASH_SCHEME = "sha256"
 
 
 def hash_password(password: str) -> str:
@@ -41,26 +42,59 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_access_token(subject: str, expires_minutes: Optional[int] = None) -> str:
+def secure_token_urlsafe() -> str:
+    return secrets.token_urlsafe(48)
+
+
+def hash_security_token(token: str) -> str:
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return f"{TOKEN_HASH_SCHEME}${digest}"
+
+
+def create_access_token(subject: str, token_version: int, expires_minutes: Optional[int] = None) -> str:
+    issued_at = datetime.now(timezone.utc)
     expires = datetime.now(timezone.utc) + timedelta(
         minutes=expires_minutes or settings.JWT_EXPIRES_MINUTES
     )
-    payload = {"sub": subject, "exp": expires}
+    payload = {
+        "sub": subject,
+        "exp": expires,
+        "iat": issued_at,
+        "iss": settings.JWT_ISSUER,
+        "aud": settings.JWT_AUDIENCE,
+        "typ": "access",
+        "ver": token_version,
+    }
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
-def _decode_user_id(token: str) -> int:
+def _decode_payload(token: str) -> dict:
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
-        subject = payload.get("sub")
-        if not subject:
-            raise ValueError("missing subject")
-        return int(subject)
+        return jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM],
+            issuer=settings.JWT_ISSUER,
+            audience=settings.JWT_AUDIENCE,
+        )
     except (JWTError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired authentication token.",
         )
+
+
+def _user_from_payload(payload: dict, db: Session) -> User:
+    subject = payload.get("sub")
+    if not subject:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token subject.")
+    user = db.get(User, int(subject))
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found.")
+    token_version = payload.get("ver")
+    if token_version is not None and int(token_version) != user.token_version:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired.")
+    return user
 
 
 def get_current_user(
@@ -72,14 +106,8 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required.",
         )
-    user_id = _decode_user_id(credentials.credentials)
-    user = db.get(User, user_id)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found.",
-        )
-    return user
+    payload = _decode_payload(credentials.credentials)
+    return _user_from_payload(payload, db)
 
 
 def get_optional_user(
@@ -88,5 +116,5 @@ def get_optional_user(
 ) -> User | None:
     if credentials is None:
         return None
-    user_id = _decode_user_id(credentials.credentials)
-    return db.get(User, user_id)
+    payload = _decode_payload(credentials.credentials)
+    return _user_from_payload(payload, db)

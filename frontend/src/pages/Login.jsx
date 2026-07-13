@@ -42,6 +42,7 @@ export default function Login() {
           <label>Password<input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required /></label>
           <button className="btn btn-primary" disabled={loading}>{loading ? 'Checking' : 'Continue'} <ArrowRight size={16} /></button>
         </form>
+        <p className="auth-switch"><Link to="/forgot-password">Forgot password?</Link></p>
         <p className="auth-switch">No account yet? <Link to="/signup">Create one</Link></p>
       </section>
     </main>

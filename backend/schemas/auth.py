@@ -1,7 +1,19 @@
 """Auth schemas."""
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+
+def validate_password_strength(value: str) -> str:
+    checks = [
+        any(ch.islower() for ch in value),
+        any(ch.isupper() for ch in value),
+        any(ch.isdigit() for ch in value),
+        any(not ch.isalnum() for ch in value),
+    ]
+    if sum(checks) < 3:
+        raise ValueError("Password must include at least three of: lowercase, uppercase, number, symbol.")
+    return value
 
 
 class UserBase(BaseModel):
@@ -13,12 +25,51 @@ class UserBase(BaseModel):
 
 
 class SignupRequest(UserBase):
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=12, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def password_strength(cls, value: str) -> str:
+        return validate_password_strength(value)
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=32, max_length=256)
+    new_password: str = Field(min_length=12, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def password_strength(cls, value: str) -> str:
+        return validate_password_strength(value)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=12, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def password_strength(cls, value: str) -> str:
+        return validate_password_strength(value)
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(min_length=32, max_length=256)
+
+
+class AuthMessage(BaseModel):
+    message: str
+    reset_token: str | None = None
+    verification_token: str | None = None
 
 
 class UserUpdate(BaseModel):
@@ -33,6 +84,7 @@ class UserOut(UserBase):
 
     id: int
     is_active: bool
+    email_verified: bool
     created_at: datetime
 
 

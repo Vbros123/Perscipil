@@ -39,6 +39,16 @@ export function AuthProvider({ children }) {
     refreshUser()
   }, [refreshUser])
 
+  useEffect(() => {
+    const expire = () => {
+      setToken(null)
+      setTokenState(null)
+      setUser(null)
+    }
+    window.addEventListener('privatelens:session-expired', expire)
+    return () => window.removeEventListener('privatelens:session-expired', expire)
+  }, [])
+
   const signup = useCallback(async (payload) => {
     const session = await authApi.signup(payload)
     persistSession(session)
@@ -51,7 +61,12 @@ export function AuthProvider({ children }) {
     return session.user
   }, [persistSession])
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      if (getToken()) await authApi.logout()
+    } catch {
+      // Local logout still wins if the network is gone or the token is already invalid.
+    }
     setToken(null)
     setTokenState(null)
     setUser(null)

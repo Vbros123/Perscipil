@@ -14,6 +14,10 @@ export function login(payload) {
   })
 }
 
+export function logout() {
+  return apiRequest('/api/auth/logout', { method: 'POST' })
+}
+
 export function getMe() {
   return apiRequest('/api/auth/me')
 }
@@ -21,6 +25,38 @@ export function getMe() {
 export function updateMe(payload) {
   return apiRequest('/api/users/me', {
     method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function requestPasswordReset(payload) {
+  return apiRequest('/api/auth/request-password-reset', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function resetPassword(payload) {
+  return apiRequest('/api/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function changePassword(payload) {
+  return apiRequest('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function requestEmailVerification() {
+  return apiRequest('/api/auth/request-email-verification', { method: 'POST' })
+}
+
+export function verifyEmail(payload) {
+  return apiRequest('/api/auth/verify-email', {
+    method: 'POST',
     body: JSON.stringify(payload),
   })
 }
