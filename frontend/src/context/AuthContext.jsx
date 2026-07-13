@@ -1,0 +1,87 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+
+import * as authApi from '../api/auth'
+import { getToken, setToken } from '../api/client'
+
+const AuthContext = createContext(null)
+
+export function AuthProvider({ children }) {
+  const [token, setTokenState] = useState(() => getToken())
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(Boolean(getToken()))
+
+  const persistSession = useCallback((session) => {
+    setToken(session.access_token)
+    setTokenState(session.access_token)
+    setUser(session.user)
+  }, [])
+
+  const refreshUser = useCallback(async () => {
+    if (!getToken()) {
+      setLoading(false)
+      return null
+    }
+    try {
+      const nextUser = await authApi.getMe()
+      setUser(nextUser)
+      return nextUser
+    } catch {
+      setToken(null)
+      setTokenState(null)
+      setUser(null)
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshUser()
+  }, [refreshUser])
+
+  const signup = useCallback(async (payload) => {
+    const session = await authApi.signup(payload)
+    persistSession(session)
+    return session.user
+  }, [persistSession])
+
+  const login = useCallback(async (payload) => {
+    const session = await authApi.login(payload)
+    persistSession(session)
+    return session.user
+  }, [persistSession])
+
+  const logout = useCallback(() => {
+    setToken(null)
+    setTokenState(null)
+    setUser(null)
+  }, [])
+
+  const updateUser = useCallback(async (payload) => {
+    const nextUser = await authApi.updateMe(payload)
+    setUser(nextUser)
+    return nextUser
+  }, [])
+
+  const value = useMemo(() => ({
+    token,
+    user,
+    loading,
+    isAuthenticated: Boolean(token && user),
+    signup,
+    login,
+    logout,
+    refreshUser,
+    updateUser,
+  }), [token, user, loading, signup, login, logout, refreshUser, updateUser])
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+export function useAuth() {
+  const value = useContext(AuthContext)
+  if (!value) {
+    throw new Error('useAuth must be used inside AuthProvider.')
+  }
+  return value
+}

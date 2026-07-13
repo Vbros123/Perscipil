@@ -1,0 +1,65 @@
+import { ArrowRight, Gauge } from 'lucide-react'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+
+import ErrorNotice from '../components/common/ErrorNotice'
+import { useAuth } from '../context/AuthContext'
+
+export default function Signup() {
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+    first_name: '',
+    last_name: '',
+    company: '',
+    role: '',
+  })
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const { signup } = useAuth()
+  const navigate = useNavigate()
+
+  const update = (field) => (event) => setForm({ ...form, [field]: event.target.value })
+
+  const submit = async (event) => {
+    event.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      await signup(form)
+      navigate('/onboarding')
+    } catch (err) {
+      setError(err.message || 'Unable to create account.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <main className="auth-page">
+      <Link to="/" className="brand auth-brand">
+        <span className="brand-mark"><Gauge size={19} /></span>
+        <span><strong>PrivateLens</strong><small>Private company intelligence</small></span>
+      </Link>
+      <section className="auth-card wide">
+        <div className="eyebrow">Create workspace</div>
+        <h1>Start using PrivateLens</h1>
+        <ErrorNotice message={error} />
+        <form onSubmit={submit} className="form-stack">
+          <div className="form-grid">
+            <label>First name<input value={form.first_name} onChange={update('first_name')} /></label>
+            <label>Last name<input value={form.last_name} onChange={update('last_name')} /></label>
+          </div>
+          <label>Email<input type="email" value={form.email} onChange={update('email')} required /></label>
+          <label>Password<input type="password" minLength={8} value={form.password} onChange={update('password')} required /></label>
+          <div className="form-grid">
+            <label>Company<input value={form.company} onChange={update('company')} /></label>
+            <label>Role<input value={form.role} onChange={update('role')} /></label>
+          </div>
+          <button className="btn btn-primary" disabled={loading}>{loading ? 'Creating' : 'Create account'} <ArrowRight size={16} /></button>
+        </form>
+        <p className="auth-switch">Already have an account? <Link to="/login">Log in</Link></p>
+      </section>
+    </main>
+  )
+}

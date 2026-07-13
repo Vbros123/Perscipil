@@ -6,6 +6,8 @@ from collections import deque
 from datetime import datetime, timezone
 from threading import Lock
 
+from models.company import CompanyReport, CompanySearch
+
 
 class HistoryStore:
     def __init__(self, maxlen: int = 100):
@@ -38,3 +40,32 @@ class HistoryStore:
 
 
 history_store = HistoryStore()
+
+
+def store_company_event(db, user, score_data: dict, query_type: str = "score") -> None:
+    """Persist a score or compare event for an authenticated user."""
+    if user is None:
+        return
+
+    db.add(
+        CompanySearch(
+            user_id=user.id,
+            company_name=score_data["company_name"],
+            normalized_name=score_data["normalized_name"],
+            private_score=score_data["private_score"],
+            rating=score_data["rating"],
+            color=score_data["color"],
+            query_type=query_type,
+        )
+    )
+    db.add(
+        CompanyReport(
+            user_id=user.id,
+            company_name=score_data["company_name"],
+            normalized_name=score_data["normalized_name"],
+            private_score=score_data["private_score"],
+            rating=score_data["rating"],
+            report_json=score_data.get("report", {}),
+        )
+    )
+    db.commit()

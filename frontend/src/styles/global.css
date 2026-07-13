@@ -1,107 +1,169 @@
 *, *::before, *::after {
   box-sizing: border-box;
+}
+
+* {
   margin: 0;
-  padding: 0;
 }
 
 :root {
-  --bg: #f4f6f8;
-  --surface: #ffffff;
-  --surface-raised: #fbfcfd;
-  --surface-muted: #e9eef3;
-  --surface-inverse: #111318;
-  --border: #dce3ea;
-  --border-strong: #c5d0da;
-  --text: #111827;
-  --text-muted: #546170;
-  --text-soft: #818b98;
-  --inverse-text: #f7fafc;
-  --inverse-muted: #aab2bd;
-  --accent: #0f766e;
-  --blue: #315efb;
-  --green: #0b9f6a;
-  --gold: #b7791f;
-  --red: #c2414b;
-  --shadow-xs: 0 1px 2px rgba(17, 24, 39, 0.04);
-  --shadow-sm: 0 10px 30px rgba(17, 24, 39, 0.06);
-  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: dark;
+  --bg: #0b0d0f;
+  --bg-elevated: #101418;
+  --panel: #151a1f;
+  --panel-strong: #1c2329;
+  --panel-soft: #11161a;
+  --line: rgba(207, 216, 226, 0.12);
+  --line-strong: rgba(207, 216, 226, 0.22);
+  --text: #eef2f6;
+  --muted: #9aa7b5;
+  --soft: #687584;
+  --teal: #2dd4bf;
+  --teal-strong: #14b8a6;
+  --blue: #60a5fa;
+  --amber: #f59e0b;
+  --red: #fb7185;
+  --violet: #a78bfa;
+  --green: #22c55e;
+  --shadow: 0 22px 80px rgba(0, 0, 0, 0.34);
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 html {
+  min-height: 100%;
+  background: var(--bg);
   font-size: 16px;
-  scroll-behavior: smooth;
 }
 
 body {
   min-height: 100vh;
-  background: var(--bg);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(45, 212, 191, 0.12), transparent 28rem),
+    radial-gradient(circle at 90% 16%, rgba(245, 158, 11, 0.07), transparent 24rem),
+    var(--bg);
   color: var(--text);
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--sans);
   line-height: 1.5;
   letter-spacing: 0;
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
 }
 
+body,
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
   letter-spacing: 0;
 }
 
-button {
+button,
+a {
   -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  border: 0;
 }
 
 a {
   color: inherit;
+  text-decoration: none;
+}
+
+img,
+svg {
+  display: block;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: 0;
+  background: #0e1216;
+  color: var(--text);
+}
+
+input,
+select {
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+textarea {
+  min-height: 110px;
+  padding: 12px;
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(45, 212, 191, 0.72);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.12);
+}
+
+input:disabled {
+  color: var(--soft);
+  cursor: not-allowed;
 }
 
 ::selection {
-  background: rgba(15, 118, 110, 0.18);
+  background: rgba(45, 212, 191, 0.22);
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
+  width: 9px;
+  height: 9px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c8d1da;
+  border: 2px solid transparent;
   border-radius: 999px;
-}
-
-@keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  background: rgba(154, 167, 181, 0.35);
+  background-clip: content-box;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
-@keyframes shimmer {
-  100% {
-    transform: translateX(100%);
-  }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.screen-loader,
+.not-found {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+}
+
+.not-found {
+  align-content: center;
+}
+
+.not-found h1 {
+  font-size: 34px;
 }
