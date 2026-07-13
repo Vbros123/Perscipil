@@ -10,11 +10,13 @@ import time
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from core.config import get_settings
 from core.database import init_db
+from core.observability import configure_logging, configure_sentry, metrics
 from routers.auth import router as auth_router
+from routers.compliance import router as compliance_router
 from routers.compare import router as compare_router
 from routers.history import router as history_router
 from routers.score import router as score_router
@@ -22,7 +24,8 @@ from routers.settings import router as settings_router
 from routers.users import router as users_router
 from routers.watchlist import router as watchlist_router
 
-logging.basicConfig(level=logging.INFO)
+configure_logging()
+configure_sentry()
 logger = logging.getLogger("privatelens")
 
 settings = get_settings()
@@ -64,7 +67,9 @@ async def add_timing_header(request: Request, call_next):
     start = time.perf_counter()
     request_id = request.headers.get("x-request-id") or secrets.token_hex(12)
     response = await call_next(request)
-    ms = round((time.perf_counter() - start) * 1000, 1)
+    elapsed = time.perf_counter() - start
+    ms = round(elapsed * 1000, 1)
+    metrics.observe(request.method, request.url.path, response.status_code, elapsed)
     response.headers["X-Response-Time"] = f"{ms}ms"
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -83,6 +88,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 app.include_router(auth_router)
+app.include_router(compliance_router)
 app.include_router(users_router)
 app.include_router(settings_router)
 app.include_router(watchlist_router)
@@ -114,4 +120,20 @@ def root():
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": settings.APP_VERSION}
+    return {
+        "status": "ok",
+        "version": settings.APP_VERSION,
+        "environment": settings.ENVIRONMENT,
+        "database": "postgres" if settings.DATABASE_URL.startswith(("postgres://", "postgresql://")) else "sqlite",
+        "email": settings.EMAIL_DELIVERY_MODE,
+        "observability": {"sentry": bool(settings.SENTRY_DSN), "metrics": bool(settings.METRICS_TOKEN)},
+        "licensed_data": bool(settings.LICENSED_DATA_GATEWAY_URL and settings.LICENSED_DATA_API_KEY),
+    }
+
+
+@app.get("/api/metrics", response_class=PlainTextResponse)
+def get_metrics(request: Request):
+    provided = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if settings.METRICS_TOKEN and secrets.compare_digest(provided, settings.METRICS_TOKEN):
+        return metrics.render_prometheus()
+    return PlainTextResponse("not found\n", status_code=404)

@@ -30,6 +30,29 @@ class Settings(BaseSettings):
     LOGIN_MAX_FAILED_ATTEMPTS: int = 5
     LOGIN_LOCKOUT_MINUTES: int = 15
 
+    # Email delivery
+    EMAIL_DELIVERY_MODE: Literal["disabled", "console", "smtp"] = "console"
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_FROM_EMAIL: str = "security@privatelens.com"
+    SMTP_FROM_NAME: str = "PrivateLens Security"
+    SMTP_USE_TLS: bool = True
+    APP_PUBLIC_URL: str = "http://localhost:5173"
+
+    # Observability
+    LOG_LEVEL: str = "INFO"
+    SENTRY_DSN: str | None = None
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.05
+    METRICS_TOKEN: str | None = None
+
+    # Licensed data gateway. This should point at a vendor-normalization service
+    # that has contracts and credentials for paid providers.
+    LICENSED_DATA_GATEWAY_URL: str | None = None
+    LICENSED_DATA_API_KEY: str | None = None
+    LICENSED_DATA_TIMEOUT: float = 6.0
+
     # Cache TTL in seconds (1 hour)
     CACHE_TTL: int = 3600
 
@@ -80,6 +103,18 @@ class Settings(BaseSettings):
             raise RuntimeError("ALLOWED_ORIGINS must not be '*' in production.")
         if self.ALLOWED_HOSTS == "*":
             raise RuntimeError("ALLOWED_HOSTS must not be '*' in production.")
+        if not self.DATABASE_URL.startswith(("postgres://", "postgresql://")):
+            raise RuntimeError("DATABASE_URL must point to managed Postgres in production.")
+        if self.EMAIL_DELIVERY_MODE != "smtp":
+            raise RuntimeError("EMAIL_DELIVERY_MODE must be 'smtp' in production.")
+        if not self.SMTP_HOST or not self.SMTP_USERNAME or not self.SMTP_PASSWORD:
+            raise RuntimeError("SMTP_HOST, SMTP_USERNAME, and SMTP_PASSWORD are required in production.")
+        if not self.SENTRY_DSN:
+            raise RuntimeError("SENTRY_DSN is required in production.")
+        if not self.METRICS_TOKEN or len(self.METRICS_TOKEN) < 24:
+            raise RuntimeError("METRICS_TOKEN must be set to a strong value in production.")
+        if not self.LICENSED_DATA_GATEWAY_URL or not self.LICENSED_DATA_API_KEY:
+            raise RuntimeError("Licensed data gateway URL and API key are required in production.")
 
 
 @lru_cache()

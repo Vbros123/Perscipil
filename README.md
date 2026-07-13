@@ -12,11 +12,13 @@ PrivateLens is a research tool and does not provide credit, investment, legal, o
 
 - Account signup, login, JWT sessions, and `/api/auth/me`
 - Password reset, password change, email verification scaffolding, and auth audit events
+- SMTP transactional email delivery for password reset and email verification
 - PrivateScore company reports with live/modelled signal labels
 - User-specific history and saved company watchlists
 - Peer comparison for two to four companies
 - Workspace settings, account profile, pricing, and developer pages
 - Alembic migrations, SQLite locally, and Postgres-ready `DATABASE_URL` support
+- Sentry-ready observability, protected metrics, backup/restore scripts, and licensed data gateway contract
 
 ## Repository Structure
 
@@ -50,9 +52,18 @@ backend/
     settings.py
   services/
     collectors.py
+    licensed_data.py
     scorer.py
     history.py
     reports.py
+ops/
+  backup_postgres.sh
+  restore_postgres.sh
+  backup_runbook.md
+  compliance_controls.md
+  external_security_review.md
+  licensed_data_gateway_contract.md
+  production_cutover.md
 
 frontend/
   src/
@@ -93,10 +104,21 @@ Vite runs on `http://localhost:3001`.
 
 | Name | Required | Default | Notes |
 |---|---:|---|---|
-| `DATABASE_URL` | No | `sqlite:///./privatelens.db` | Use Postgres or a Render persistent disk in production. |
+| `DATABASE_URL` | Yes in production | `sqlite:///./privatelens.db` | Must be managed Postgres in production. |
 | `JWT_SECRET` | Yes in production | `change-this-in-production` | Set a long random secret. |
 | `JWT_EXPIRES_MINUTES` | No | `10080` | Default is seven days. |
 | `AUTH_TOKEN_RETURN_IN_RESPONSE` | No | `false` | Test/dev only. Never enable in production. |
+| `EMAIL_DELIVERY_MODE` | Yes in production | `console` | Use `smtp` in production. |
+| `SMTP_HOST` | Yes in production | | SMTP provider host. |
+| `SMTP_PORT` | No | `587` | SMTP provider port. |
+| `SMTP_USERNAME` | Yes in production | | SMTP username/API user. |
+| `SMTP_PASSWORD` | Yes in production | | SMTP password/API key. |
+| `SMTP_FROM_EMAIL` | Yes in production | `security@privatelens.com` | Verified sender. |
+| `APP_PUBLIC_URL` | Yes in production | `http://localhost:5173` | Used for reset/verification links. |
+| `SENTRY_DSN` | Yes in production | | Enables error capture and traces. |
+| `METRICS_TOKEN` | Yes in production | | Bearer token for `/api/metrics`. |
+| `LICENSED_DATA_GATEWAY_URL` | Yes in production | | Normalization gateway for paid data feeds. |
+| `LICENSED_DATA_API_KEY` | Yes in production | | Bearer token for the gateway. |
 | `ALLOWED_ORIGINS` | No | `*` | Comma-separated origins, for example `https://privatelens.vercel.app`. |
 | `FRONTEND_URL` | No | `http://localhost:5173` | Added to CORS when `ALLOWED_ORIGINS` is not `*`. |
 | `ALLOWED_HOSTS` | No | `*` | Set to `privatelens.onrender.com` in production. |
@@ -123,6 +145,8 @@ Vite runs on `http://localhost:3001`.
 | `POST` | `/api/auth/request-email-verification` | Issue email verification token |
 | `POST` | `/api/auth/verify-email` | Verify email with token |
 | `GET` | `/api/auth/me` | Current authenticated user |
+| `GET` | `/api/compliance/status` | Readiness and compliance integration status |
+| `GET` | `/api/metrics` | Protected Prometheus-style metrics |
 | `PATCH` | `/api/users/me` | Update profile |
 | `GET` | `/api/score?company=NAME` | Score a company and return a report |
 | `GET` | `/api/compare?companies=A,B` | Compare two to four companies |
@@ -148,17 +172,15 @@ Authorization: Bearer <token>
 
 ### Render Backend
 
-1. Build command: `pip install -r requirements.txt`
-2. Production build command: `pip install -r requirements.txt && alembic upgrade head`
-3. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. Root directory: `backend`
-5. Set `JWT_SECRET` to a strong production value.
-6. Set `ALLOWED_ORIGINS=https://privatelens.vercel.app`.
-7. Set `ALLOWED_HOSTS=privatelens.onrender.com`.
-8. Set `AUTO_CREATE_TABLES=false`.
-9. Set `DATABASE_URL` to a managed Postgres URL or attach a persistent disk if using SQLite.
+The included `render.yaml` declares a managed Postgres database named `privatelens-postgres` and passes its connection string into `DATABASE_URL`.
 
-SQLite works locally and for demos. Render free instances have ephemeral filesystems unless a disk is attached, so production user data should use Postgres.
+1. Root directory: `backend`
+2. Build command: `pip install -r requirements.txt && alembic upgrade head`
+3. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+4. Set all `sync: false` secrets in Render.
+5. Keep `AUTO_CREATE_TABLES=false`.
+
+SQLite works locally only. Production startup intentionally fails unless `DATABASE_URL` points to managed Postgres and SMTP, Sentry, metrics, and licensed-data gateway settings are present.
 
 ### Vercel Frontend
 
@@ -172,7 +194,22 @@ SQLite works locally and for demos. Render free instances have ephemeral filesys
 
 Live/free collectors currently include SEC EDGAR, Wikipedia, DuckDuckGo, HackerNews, and USASpending.gov. Some external pages such as job boards may block automated requests, in which case PrivateLens falls back to deterministic modelled signals.
 
-Simulated data is clearly marked with `is_simulated: true` in API responses and shown as modelled in the UI. These signals are placeholders for licensed data feeds such as UCC filings, court records, open banking cash-flow data, B2B payment behavior, review data, web traffic, social activity, and supply-chain risk.
+Paid data is integrated through `LICENSED_DATA_GATEWAY_URL`. The gateway must return the normalized schema documented in `ops/licensed_data_gateway_contract.md`. When a licensed signal is returned, PrivateLens marks it as live and includes provider/license metadata. When unavailable, simulated data is clearly marked with `is_simulated: true` in API responses and shown as modelled in the UI.
+
+## Operational Readiness
+
+- Backup and restore runbook: `ops/backup_runbook.md`
+- External security review scope: `ops/external_security_review.md`
+- Legal/compliance controls: `ops/compliance_controls.md`
+- Licensed data gateway contract: `ops/licensed_data_gateway_contract.md`
+- Production cutover checklist: `ops/production_cutover.md`
+
+Nightly backup example:
+
+```bash
+cd ops
+DATABASE_URL="$PRODUCTION_DATABASE_URL" BACKUP_S3_URI="s3://your-private-bucket/privatelens" ./backup_postgres.sh
+```
 
 ## Validation
 
@@ -197,4 +234,10 @@ Migrations:
 ```bash
 cd backend
 alembic upgrade head
+```
+
+Metrics:
+
+```bash
+curl -H "Authorization: Bearer $METRICS_TOKEN" https://privatelens.onrender.com/api/metrics
 ```

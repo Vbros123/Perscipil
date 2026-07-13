@@ -10,6 +10,7 @@ import math
 import re
 from datetime import datetime, timedelta
 from core.config import get_settings
+from services.licensed_data import apply_licensed_overrides
 
 settings = get_settings()
 
@@ -480,6 +481,7 @@ async def collect_all(company_name: str) -> list[dict]:
         sim_payment_behavior(company_name),
         sim_insider_sentiment(company_name),
     ]
+    simulated = await apply_licensed_overrides(company_name, simulated)
 
     # Deduplicate by signal name
     seen, out = set(), []

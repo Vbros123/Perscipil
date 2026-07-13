@@ -1,11 +1,13 @@
 """Authentication routes."""
 from datetime import datetime, timedelta, timezone
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from core.config import get_settings
 from core.database import get_db
+from core.email import send_email_verification, send_password_reset_email
 from core.security import (
     create_access_token,
     get_current_user,
@@ -30,6 +32,7 @@ from schemas.auth import (
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 settings = get_settings()
+logger = logging.getLogger("privatelens.auth")
 
 
 def utc_now() -> datetime:
@@ -124,9 +127,21 @@ def signup(payload: SignupRequest, request: Request, db: Session = Depends(get_d
     )
     user.settings = UserSettings()
     db.add(user)
+    db.flush()
     audit(db, "signup_success", request, user=user, email=email)
     db.commit()
     db.refresh(user)
+    verification_token = issue_security_token(
+        db,
+        user,
+        "email_verification",
+        settings.EMAIL_VERIFICATION_TOKEN_MINUTES,
+    )
+    db.commit()
+    try:
+        send_email_verification(user.email, verification_token)
+    except Exception as exc:
+        logger.error("signup_verification_email_failed user_id=%s error=%s", user.id, exc)
 
     return session_for(user)
 
@@ -222,6 +237,8 @@ def request_password_reset(
     else:
         audit(db, "password_reset_requested_unknown_user", request, email=payload.email.lower())
     db.commit()
+    if user and user.is_active and token:
+        send_password_reset_email(user.email, token)
     return {
         "message": "If an account exists, reset instructions have been issued.",
         "reset_token": token if settings.AUTH_TOKEN_RETURN_IN_RESPONSE else None,
@@ -263,6 +280,7 @@ def request_email_verification(
     )
     audit(db, "email_verification_requested", request, user=current_user)
     db.commit()
+    send_email_verification(current_user.email, token)
     return {
         "message": "Verification instructions have been issued.",
         "verification_token": token if settings.AUTH_TOKEN_RETURN_IN_RESPONSE else None,

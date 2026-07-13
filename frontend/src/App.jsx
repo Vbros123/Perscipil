@@ -19,6 +19,7 @@ import Pricing from './pages/Pricing'
 import ResetPassword from './pages/ResetPassword'
 import Settings from './pages/Settings'
 import Signup from './pages/Signup'
+import VerifyEmail from './pages/VerifyEmail'
 import Watchlist from './pages/Watchlist'
 
 export default function App() {
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
           </Route>
           <Route element={<ProtectedRoute />}>
             <Route path="/onboarding" element={<Onboarding />} />

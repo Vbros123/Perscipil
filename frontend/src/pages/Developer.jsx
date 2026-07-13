@@ -14,6 +14,8 @@ const endpoints = [
   ['POST', '/api/auth/request-email-verification', 'Issue verification instructions'],
   ['POST', '/api/auth/verify-email', 'Verify email with token'],
   ['GET', '/api/auth/me', 'Current user'],
+  ['GET', '/api/compliance/status', 'Production readiness status'],
+  ['GET', '/api/metrics', 'Bearer-token protected metrics'],
   ['GET', '/api/score?company=NAME', 'Company report'],
   ['GET', '/api/compare?companies=A,B', 'Peer comparison'],
   ['GET', '/api/watchlist', 'Saved companies'],
