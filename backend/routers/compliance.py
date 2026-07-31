@@ -21,6 +21,7 @@ def compliance_status():
             "runbook": "/ops/backup_runbook.md",
             "requires_managed_postgres": True,
         },
+        "data_mode": settings.DATA_MODE,
         "licensed_data_gateway": bool(settings.LICENSED_DATA_GATEWAY_URL and settings.LICENSED_DATA_API_KEY),
         "legal_notice": "PrivateLens is a research tool and does not provide credit, investment, legal, or lending advice.",
     }

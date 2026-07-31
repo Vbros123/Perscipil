@@ -7,11 +7,21 @@ Protect production customer data stored in managed Postgres and prove restore ca
 ## Required Production Setup
 
 - Managed Postgres is configured through `DATABASE_URL`.
-- Render automated database backups are enabled on the database service.
-- A separate off-platform backup destination is configured, such as S3, with retention policies.
+- Neon point-in-time restore is available for the provider's current free retention window.
+- GitHub Actions secrets `PRODUCTION_DATABASE_URL` and `BACKUP_ENCRYPTION_KEY` are configured.
 - `pg_dump`, `pg_restore`, and the destination CLI are available in the backup runner.
 
-## Nightly Backup
+## Automated Free-Tier Backup
+
+`.github/workflows/postgres-backup.yml` runs daily and on manual dispatch. It creates a custom-format Postgres dump, encrypts it with AES-256, and stores only the encrypted file as a private GitHub Actions artifact for seven days.
+
+Generate the encryption key once and store it only in GitHub Actions secrets and your password manager:
+
+```bash
+openssl rand -hex 48
+```
+
+## Manual Backup
 
 ```bash
 cd ops
@@ -37,9 +47,8 @@ CONFIRM_RESTORE=I_UNDERSTAND_THIS_OVERWRITES_DATA \
 - `/api/health` returns `status=ok`.
 - Login, watchlist, history, and score report workflows are manually verified in staging.
 
-## Retention
+## Free-Tier Retention
 
-- Daily backups: 30 days.
-- Weekly backups: 12 weeks.
-- Monthly backups: 12 months.
-- Security incidents or legal holds override deletion.
+- Encrypted GitHub Actions artifacts: 7 days.
+- Neon point-in-time restore: provider's current free-plan window.
+- Longer retention and independent off-platform storage require a paid service or a separate operator-owned backup destination.

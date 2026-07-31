@@ -127,6 +127,7 @@ def health():
         "database": "postgres" if settings.DATABASE_URL.startswith(("postgres://", "postgresql://")) else "sqlite",
         "email": settings.EMAIL_DELIVERY_MODE,
         "observability": {"sentry": bool(settings.SENTRY_DSN), "metrics": bool(settings.METRICS_TOKEN)},
+        "data_mode": settings.DATA_MODE,
         "licensed_data": bool(settings.LICENSED_DATA_GATEWAY_URL and settings.LICENSED_DATA_API_KEY),
     }
 

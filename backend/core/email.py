@@ -6,6 +6,8 @@ import smtplib
 from email.message import EmailMessage
 from urllib.parse import urlencode
 
+import httpx
+
 from core.config import get_settings
 
 logger = logging.getLogger("privatelens.email")
@@ -23,6 +25,27 @@ def _send_email(to_email: str, subject: str, text_body: str, html_body: str | No
     if settings.EMAIL_DELIVERY_MODE == "console":
         logger.info("email.console to=%s subject=%s body=%s", to_email, subject, text_body)
         return
+
+    if settings.EMAIL_DELIVERY_MODE == "resend":
+        payload = {
+            "from": f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>",
+            "to": [to_email],
+            "subject": subject,
+            "text": text_body,
+        }
+        if html_body:
+            payload["html"] = html_body
+        try:
+            response = httpx.post(
+                settings.RESEND_API_URL,
+                json=payload,
+                headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+                timeout=15,
+            )
+            response.raise_for_status()
+            return
+        except Exception as exc:
+            raise EmailDeliveryError("Failed to deliver transactional email through Resend.") from exc
 
     if not settings.SMTP_HOST:
         raise EmailDeliveryError("SMTP_HOST is required for SMTP email delivery.")

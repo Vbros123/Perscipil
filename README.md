@@ -108,17 +108,19 @@ Vite runs on `http://localhost:3001`.
 | `JWT_SECRET` | Yes in production | `change-this-in-production` | Set a long random secret. |
 | `JWT_EXPIRES_MINUTES` | No | `10080` | Default is seven days. |
 | `AUTH_TOKEN_RETURN_IN_RESPONSE` | No | `false` | Test/dev only. Never enable in production. |
-| `EMAIL_DELIVERY_MODE` | Yes in production | `console` | Use `smtp` in production. |
-| `SMTP_HOST` | Yes in production | | SMTP provider host. |
+| `EMAIL_DELIVERY_MODE` | Yes in production | `console` | Use `resend` on Render Free or `smtp` where SMTP egress is supported. |
+| `RESEND_API_KEY` | With `EMAIL_DELIVERY_MODE=resend` | | Resend HTTPS API key. |
+| `SMTP_HOST` | With `EMAIL_DELIVERY_MODE=smtp` | | SMTP provider host. |
 | `SMTP_PORT` | No | `587` | SMTP provider port. |
-| `SMTP_USERNAME` | Yes in production | | SMTP username/API user. |
-| `SMTP_PASSWORD` | Yes in production | | SMTP password/API key. |
+| `SMTP_USERNAME` | With `EMAIL_DELIVERY_MODE=smtp` | | SMTP username/API user. |
+| `SMTP_PASSWORD` | With `EMAIL_DELIVERY_MODE=smtp` | | SMTP password/API key. |
 | `SMTP_FROM_EMAIL` | Yes in production | `security@privatelens.com` | Verified sender. |
 | `APP_PUBLIC_URL` | Yes in production | `http://localhost:5173` | Used for reset/verification links. |
-| `SENTRY_DSN` | Yes in production | | Enables error capture and traces. |
+| `SENTRY_DSN` | Recommended | | Enables optional Sentry error capture and traces. |
 | `METRICS_TOKEN` | Yes in production | | Bearer token for `/api/metrics`. |
-| `LICENSED_DATA_GATEWAY_URL` | Yes in production | | Normalization gateway for paid data feeds. |
-| `LICENSED_DATA_API_KEY` | Yes in production | | Bearer token for the gateway. |
+| `DATA_MODE` | No | `public` | Use `public` for open-data collectors or `licensed` for paid-provider overrides. |
+| `LICENSED_DATA_GATEWAY_URL` | In licensed mode | | Normalization gateway for paid data feeds. |
+| `LICENSED_DATA_API_KEY` | In licensed mode | | Bearer token for the gateway. |
 | `ALLOWED_ORIGINS` | No | `*` | Comma-separated origins, for example `https://privatelens.vercel.app`. |
 | `FRONTEND_URL` | No | `http://localhost:5173` | Added to CORS when `ALLOWED_ORIGINS` is not `*`. |
 | `ALLOWED_HOSTS` | No | `*` | Set to `privatelens.onrender.com` in production. |
@@ -172,7 +174,7 @@ Authorization: Bearer <token>
 
 ### Render Backend
 
-The included `render.yaml` declares a managed Postgres database named `privatelens-postgres` and passes its connection string into `DATABASE_URL`.
+The included `render.yaml` deploys the API on Render Free. Use a Neon Free pooled Postgres connection for `DATABASE_URL`; Render Free Postgres expires after 30 days and has no backups.
 
 1. Root directory: `backend`
 2. Build command: `pip install -r requirements.txt && alembic upgrade head`
@@ -180,7 +182,7 @@ The included `render.yaml` declares a managed Postgres database named `privatele
 4. Set all `sync: false` secrets in Render.
 5. Keep `AUTO_CREATE_TABLES=false`.
 
-SQLite works locally only. Production startup intentionally fails unless `DATABASE_URL` points to managed Postgres and SMTP, Sentry, metrics, and licensed-data gateway settings are present.
+SQLite works locally only. Production startup intentionally fails unless `DATABASE_URL` points to managed Postgres, metrics are protected, and email uses Resend or SMTP. Licensed gateway credentials are required only when `DATA_MODE=licensed`.
 
 ### Vercel Frontend
 
@@ -194,7 +196,7 @@ SQLite works locally only. Production startup intentionally fails unless `DATABA
 
 Live/free collectors currently include SEC EDGAR, Wikipedia, DuckDuckGo, HackerNews, and USASpending.gov. Some external pages such as job boards may block automated requests, in which case PrivateLens falls back to deterministic modelled signals.
 
-Paid data is integrated through `LICENSED_DATA_GATEWAY_URL`. The gateway must return the normalized schema documented in `ops/licensed_data_gateway_contract.md`. When a licensed signal is returned, PrivateLens marks it as live and includes provider/license metadata. When unavailable, simulated data is clearly marked with `is_simulated: true` in API responses and shown as modelled in the UI.
+`DATA_MODE=public` uses the built-in public/open-data collectors and keeps modelled signals visibly labeled. Paid data can later be enabled with `DATA_MODE=licensed` and `LICENSED_DATA_GATEWAY_URL`; the gateway must return the normalized schema documented in `ops/licensed_data_gateway_contract.md`. When a licensed signal is returned, PrivateLens includes provider/license metadata.
 
 ## Operational Readiness
 
@@ -204,7 +206,9 @@ Paid data is integrated through `LICENSED_DATA_GATEWAY_URL`. The gateway must re
 - Licensed data gateway contract: `ops/licensed_data_gateway_contract.md`
 - Production cutover checklist: `ops/production_cutover.md`
 
-Nightly backup example:
+Free-tier backups are created by `.github/workflows/postgres-backup.yml` as encrypted, seven-day GitHub Actions artifacts. Add `PRODUCTION_DATABASE_URL` and `BACKUP_ENCRYPTION_KEY` as GitHub Actions secrets before enabling the workflow.
+
+Manual backup example:
 
 ```bash
 cd ops

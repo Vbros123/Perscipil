@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
     APP_NAME: str = "PrivateLens API"
-    APP_VERSION: str = "3.1.0"
+    APP_VERSION: str = "3.2.0"
     ENVIRONMENT: Literal["development", "test", "staging", "production"] = "development"
     DEBUG: bool = False
 
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     LOGIN_LOCKOUT_MINUTES: int = 15
 
     # Email delivery
-    EMAIL_DELIVERY_MODE: Literal["disabled", "console", "smtp"] = "console"
+    EMAIL_DELIVERY_MODE: Literal["disabled", "console", "smtp", "resend"] = "console"
     SMTP_HOST: str | None = None
     SMTP_PORT: int = 587
     SMTP_USERNAME: str | None = None
@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = "security@privatelens.com"
     SMTP_FROM_NAME: str = "PrivateLens Security"
     SMTP_USE_TLS: bool = True
+    RESEND_API_KEY: str | None = None
+    RESEND_API_URL: str = "https://api.resend.com/emails"
     APP_PUBLIC_URL: str = "http://localhost:5173"
 
     # Observability
@@ -47,8 +49,9 @@ class Settings(BaseSettings):
     SENTRY_TRACES_SAMPLE_RATE: float = 0.05
     METRICS_TOKEN: str | None = None
 
-    # Licensed data gateway. This should point at a vendor-normalization service
-    # that has contracts and credentials for paid providers.
+    # Public mode uses the built-in open-data collectors. Licensed mode adds
+    # paid-provider overrides through the vendor-normalization gateway.
+    DATA_MODE: Literal["public", "licensed"] = "public"
     LICENSED_DATA_GATEWAY_URL: str | None = None
     LICENSED_DATA_API_KEY: str | None = None
     LICENSED_DATA_TIMEOUT: float = 6.0
@@ -105,15 +108,19 @@ class Settings(BaseSettings):
             raise RuntimeError("ALLOWED_HOSTS must not be '*' in production.")
         if not self.DATABASE_URL.startswith(("postgres://", "postgresql://")):
             raise RuntimeError("DATABASE_URL must point to managed Postgres in production.")
-        if self.EMAIL_DELIVERY_MODE != "smtp":
-            raise RuntimeError("EMAIL_DELIVERY_MODE must be 'smtp' in production.")
-        if not self.SMTP_HOST or not self.SMTP_USERNAME or not self.SMTP_PASSWORD:
-            raise RuntimeError("SMTP_HOST, SMTP_USERNAME, and SMTP_PASSWORD are required in production.")
-        if not self.SENTRY_DSN:
-            raise RuntimeError("SENTRY_DSN is required in production.")
+        if self.EMAIL_DELIVERY_MODE == "smtp":
+            if not self.SMTP_HOST or not self.SMTP_USERNAME or not self.SMTP_PASSWORD:
+                raise RuntimeError("SMTP_HOST, SMTP_USERNAME, and SMTP_PASSWORD are required for SMTP delivery.")
+        elif self.EMAIL_DELIVERY_MODE == "resend":
+            if not self.RESEND_API_KEY:
+                raise RuntimeError("RESEND_API_KEY is required for Resend delivery.")
+        else:
+            raise RuntimeError("Production email delivery must use 'smtp' or 'resend'.")
         if not self.METRICS_TOKEN or len(self.METRICS_TOKEN) < 24:
             raise RuntimeError("METRICS_TOKEN must be set to a strong value in production.")
-        if not self.LICENSED_DATA_GATEWAY_URL or not self.LICENSED_DATA_API_KEY:
+        if self.DATA_MODE == "licensed" and (
+            not self.LICENSED_DATA_GATEWAY_URL or not self.LICENSED_DATA_API_KEY
+        ):
             raise RuntimeError("Licensed data gateway URL and API key are required in production.")
 
 

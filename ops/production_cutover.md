@@ -11,23 +11,20 @@
 ## Secrets
 
 - `JWT_SECRET`
-- `SMTP_HOST`
-- `SMTP_PORT`
-- `SMTP_USERNAME`
-- `SMTP_PASSWORD`
+- `RESEND_API_KEY`
 - `SMTP_FROM_EMAIL`
-- `SENTRY_DSN`
 - `METRICS_TOKEN`
-- `LICENSED_DATA_GATEWAY_URL`
-- `LICENSED_DATA_API_KEY`
+- `SENTRY_DSN` (recommended, optional)
+- `LICENSED_DATA_GATEWAY_URL` and `LICENSED_DATA_API_KEY` only for `DATA_MODE=licensed`
 
 ## Verification
 
-- `/api/health` reports Postgres, SMTP, Sentry, metrics, and licensed data enabled.
+- `/api/health` reports Postgres, Resend, metrics, and `data_mode=public`.
 - Signup sends email verification.
 - Forgot-password sends reset email.
 - `/api/metrics` returns metrics only with the bearer metrics token.
 - Backup script runs successfully.
+- Encrypted scheduled backup workflow succeeds.
 - Restore drill passes in staging.
 - External security review is scheduled or completed.
 - Counsel has reviewed terms, privacy, and compliance positioning.
