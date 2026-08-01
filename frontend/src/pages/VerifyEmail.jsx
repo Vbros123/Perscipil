@@ -1,6 +1,6 @@
 import { CheckCircle2, Gauge } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from '../router'
 
 import { verifyEmail } from '../api/auth'
 import ErrorNotice from '../components/common/ErrorNotice'

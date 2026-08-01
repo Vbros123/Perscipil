@@ -213,14 +213,14 @@ def change_password(
     if not verify_password(payload.current_password, current_user.password_hash):
         audit(db, "change_password_failed", request, user=current_user)
         db.commit()
-        raise HTTPException(status_code=401, detail="Current password is incorrect.")
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
     current_user.password_hash = hash_password(payload.new_password)
     current_user.last_password_change_at = utc_now()
     current_user.token_version += 1
     audit(db, "change_password_success", request, user=current_user)
     db.add(current_user)
     db.commit()
-    return {"message": "Password changed. Existing sessions have been invalidated."}
+    return {"message": "Password changed. Sign in again with the new password."}
 
 
 @router.post("/request-password-reset", response_model=AuthMessage)

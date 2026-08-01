@@ -1,5 +1,6 @@
 """Central configuration for PrivateLens API."""
 from functools import lru_cache
+import re
 from typing import Literal
 
 from pydantic import field_validator
@@ -10,7 +11,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
     APP_NAME: str = "PrivateLens API"
-    APP_VERSION: str = "3.2.0"
+    APP_VERSION: str = "4.0.0"
     ENVIRONMENT: Literal["development", "test", "staging", "production"] = "development"
     DEBUG: bool = False
 
@@ -55,6 +56,13 @@ class Settings(BaseSettings):
     LICENSED_DATA_GATEWAY_URL: str | None = None
     LICENSED_DATA_API_KEY: str | None = None
     LICENSED_DATA_TIMEOUT: float = 6.0
+
+    # A model can produce a public rating only after its validation packet has
+    # been approved. Shadow mode still exercises the full evidence pipeline.
+    MODEL_RELEASE_STAGE: Literal["shadow", "validated"] = "shadow"
+    MODEL_VALIDATION_REFERENCE: str | None = None
+    MODEL_VALIDATION_SHA256: str | None = None
+    MODEL_APPROVED_BY: str | None = None
 
     # Cache TTL in seconds (1 hour)
     CACHE_TTL: int = 3600
@@ -122,6 +130,15 @@ class Settings(BaseSettings):
             not self.LICENSED_DATA_GATEWAY_URL or not self.LICENSED_DATA_API_KEY
         ):
             raise RuntimeError("Licensed data gateway URL and API key are required in production.")
+        if self.DATA_MODE == "licensed" and not self.LICENSED_DATA_GATEWAY_URL.startswith("https://"):
+            raise RuntimeError("Licensed data gateway must use HTTPS in production.")
+        if self.MODEL_RELEASE_STAGE == "validated":
+            if self.DATA_MODE != "licensed":
+                raise RuntimeError("A validated model release requires licensed data mode.")
+            if not self.MODEL_VALIDATION_REFERENCE or not self.MODEL_APPROVED_BY:
+                raise RuntimeError("Validated model releases require a validation reference and approver.")
+            if not self.MODEL_VALIDATION_SHA256 or not re.fullmatch(r"[a-fA-F0-9]{64}", self.MODEL_VALIDATION_SHA256):
+                raise RuntimeError("Validated model releases require the validation artifact SHA-256.")
 
 
 @lru_cache()

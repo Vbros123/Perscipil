@@ -1,8 +1,6 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { Redirect, Route, Router, Switch } from './router'
 
-import { AuthProvider } from './context/AuthContext'
-import ProtectedRoute from './components/auth/ProtectedRoute'
-import PublicRoute from './components/auth/PublicRoute'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import AppShell from './components/layout/AppShell'
 import Account from './pages/Account'
 import CompanyReport from './pages/CompanyReport'
@@ -22,37 +20,47 @@ import Signup from './pages/Signup'
 import VerifyEmail from './pages/VerifyEmail'
 import Watchlist from './pages/Watchlist'
 
+function Protected({ children, shell = true }) {
+  const { isAuthenticated, loading } = useAuth()
+
+  if (loading) return <div className="screen-loader">Loading PrivateLens</div>
+  if (!isAuthenticated) return <Redirect to="/login" />
+  return shell ? <AppShell>{children}</AppShell> : children
+}
+
+function PublicOnly({ children }) {
+  const { isAuthenticated, loading } = useAuth()
+
+  if (loading) return <div className="screen-loader">Loading PrivateLens</div>
+  if (isAuthenticated) return <Redirect to="/dashboard" />
+  return children
+}
+
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route element={<PublicRoute />}>
-            <Route path="/login" element={<Login />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/verify-email" element={<VerifyEmail />} />
-          </Route>
-          <Route element={<ProtectedRoute />}>
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route element={<AppShell />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/reports/:company" element={<CompanyReport />} />
-              <Route path="/compare" element={<Compare />} />
-              <Route path="/watchlist" element={<Watchlist />} />
-              <Route path="/history" element={<History />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/account" element={<Account />} />
-              <Route path="/developer" element={<Developer />} />
-              <Route path="/pricing" element={<Pricing />} />
-            </Route>
-          </Route>
-          <Route path="/app" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <Router>
+        <Switch>
+          <Route path="/" component={Landing} />
+          <Route path="/signup" component={Signup} />
+          <Route path="/login"><PublicOnly><Login /></PublicOnly></Route>
+          <Route path="/forgot-password"><PublicOnly><ForgotPassword /></PublicOnly></Route>
+          <Route path="/reset-password"><PublicOnly><ResetPassword /></PublicOnly></Route>
+          <Route path="/verify-email"><PublicOnly><VerifyEmail /></PublicOnly></Route>
+          <Route path="/onboarding"><Protected shell={false}><Onboarding /></Protected></Route>
+          <Route path="/dashboard"><Protected><Dashboard /></Protected></Route>
+          <Route path="/reports/:company"><Protected><CompanyReport /></Protected></Route>
+          <Route path="/compare"><Protected><Compare /></Protected></Route>
+          <Route path="/watchlist"><Protected><Watchlist /></Protected></Route>
+          <Route path="/history"><Protected><History /></Protected></Route>
+          <Route path="/settings"><Protected><Settings /></Protected></Route>
+          <Route path="/account"><Protected><Account /></Protected></Route>
+          <Route path="/developer"><Protected><Developer /></Protected></Route>
+          <Route path="/pricing"><Protected><Pricing /></Protected></Route>
+          <Route path="/app"><Redirect to="/dashboard" /></Route>
+          <Route><NotFound /></Route>
+        </Switch>
+      </Router>
     </AuthProvider>
   )
 }

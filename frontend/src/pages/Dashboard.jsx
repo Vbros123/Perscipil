@@ -1,6 +1,6 @@
 import { BookmarkCheck, Building2, Clock3, Database, LineChart } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from '../router'
 
 import { getHistory, getSignals } from '../api/companies'
 import { listWatchlist } from '../api/watchlist'
@@ -20,6 +20,14 @@ export default function Dashboard() {
   const [signals, setSignals] = useState([])
   const [error, setError] = useState('')
   const navigate = useNavigate()
+
+  const openReport = (identity) => {
+    const params = new URLSearchParams()
+    if (identity.registration_number) params.set('registration_number', identity.registration_number)
+    if (identity.postal_code) params.set('postal_code', identity.postal_code)
+    params.set('country_code', identity.country_code || 'US')
+    navigate(`/reports/${encodeURIComponent(identity.legal_name)}?${params.toString()}`)
+  }
 
   useEffect(() => {
     let mounted = true
@@ -44,7 +52,7 @@ export default function Dashboard() {
 
   const metrics = useMemo(() => {
     const last = history[0]
-    const ratedHistory = history.filter((item) => item.rating !== 'Preliminary')
+    const ratedHistory = history.filter((item) => !['Preliminary', 'Validation hold', 'Unrated'].includes(item.rating))
     const avgScore = ratedHistory.length
       ? Math.round(ratedHistory.reduce((sum, item) => sum + Number(item.private_score || 0), 0) / ratedHistory.length)
       : '-'
@@ -52,7 +60,7 @@ export default function Dashboard() {
       { icon: Building2, label: 'Companies screened', value: history.length, detail: 'Workspace history', tone: 'accent' },
       { icon: BookmarkCheck, label: 'Saved companies', value: watchlist.length, detail: 'Active watchlist', tone: 'positive' },
       { icon: LineChart, label: 'Average score', value: avgScore, detail: 'Recent searches', tone: 'neutral' },
-      { icon: Database, label: 'Signal library', value: signals.length || 14, detail: 'Observed and unavailable inputs', tone: 'warning' },
+      { icon: Database, label: 'Signal library', value: signals.length || 10, detail: 'Verified, context, and unavailable inputs', tone: 'warning' },
       { icon: Clock3, label: 'Last check', value: last?.company_name || '-', detail: last?.rating || 'No history yet', tone: 'neutral' },
     ]
   }, [history, watchlist, signals])
@@ -62,7 +70,7 @@ export default function Dashboard() {
       <PageHeader eyebrow="Overview" title="Financial health workspace">
         Run company checks, monitor saved names, and keep diligence history tied to your account.
       </PageHeader>
-      <SearchPanel onSearch={(company) => navigate(`/reports/${encodeURIComponent(company)}`)} />
+      <SearchPanel onSearch={openReport} />
       <ErrorNotice message={error} />
       <section className="metric-grid dashboard-metrics">
         {metrics.map((item) => <MetricCard key={item.label} {...item} />)}
@@ -78,7 +86,7 @@ export default function Dashboard() {
               {history.slice(0, 6).map((item, index) => (
                 <Link key={`${item.company_name}-${item.id || index}`} to={`/reports/${encodeURIComponent(item.company_name)}`}>
                   <span>{item.company_name}</span>
-                  <strong style={{ color: item.color }}>{item.rating === 'Preliminary' ? 'N/A' : item.private_score}</strong>
+                  <strong style={{ color: item.color }}>{['Preliminary', 'Validation hold', 'Unrated'].includes(item.rating) ? 'N/A' : item.private_score}</strong>
                 </Link>
               ))}
             </div>

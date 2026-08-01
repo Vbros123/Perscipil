@@ -18,15 +18,16 @@ export default function CompanySummary({ result }) {
           <h2>{result.company_name}</h2>
           <p>{result.summary}</p>
           <div className="report-meta">
-            <span>{meta.real_signals || 0} live signals</span>
-            <span>{meta.simulated_signals || 0} unavailable signals</span>
-            <span>{percent(meta.confidence)} confidence</span>
+            <span>{meta.scored_signals || 0} verified inputs</span>
+            <span>{meta.provider_diversity || 0} licensed providers</span>
+            <span>{percent(meta.evidence_coverage)} model coverage</span>
+            <span>{percent(meta.confidence)} evidence confidence</span>
           </div>
         </div>
       </div>
       <div className="metric-grid compact">
         <MetricCard icon={ShieldCheck} label="Risk rating" value={result.report?.risk_level || result.rating} detail={isPreliminary ? 'Coverage threshold not met' : 'Screening profile'} tone={isPreliminary ? 'warning' : 'positive'} />
-        <MetricCard icon={Database} label="Signals" value={meta.total_signals || 14} detail={`${meta.scored_signals || 0} used in score`} tone="accent" />
+        <MetricCard icon={Database} label="Evidence" value={`${Math.round(Number(meta.evidence_coverage || 0) * 100)}%`} detail={`${meta.scored_signals || 0} verified inputs`} tone="accent" />
         <MetricCard icon={Clock3} label="Latency" value={`${result.elapsed_seconds || 0}s`} detail={meta.cached ? 'Cached response' : 'Fresh run'} tone="neutral" />
       </div>
     </section>

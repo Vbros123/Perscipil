@@ -1,6 +1,6 @@
 import { History as HistoryIcon, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from '../router'
 
 import { clearHistory, deleteHistoryItem, getHistory } from '../api/companies'
 import EmptyState from '../components/common/EmptyState'
@@ -60,11 +60,13 @@ export default function History() {
               <tr><th>Company</th><th>Score</th><th>Rating</th><th>Type</th><th /></tr>
             </thead>
             <tbody>
-              {items.map((item, index) => (
+              {items.map((item, index) => {
+                const unrated = ['Preliminary', 'Validation hold', 'Unrated'].includes(item.rating)
+                return (
                 <tr key={item.id || `${item.company_name}-${index}`}>
                   <td><Link className="table-link" to={`/reports/${encodeURIComponent(item.company_name)}`}>{item.company_name}</Link></td>
-                  <td className="mono" style={{ color: item.color }}>{item.rating === 'Preliminary' ? 'N/A' : item.private_score}</td>
-                  <td>{item.rating === 'Preliminary' ? 'Unrated' : item.rating}</td>
+                  <td className="mono" style={{ color: item.color }}>{unrated ? 'N/A' : item.private_score}</td>
+                  <td>{unrated ? 'Unrated' : item.rating}</td>
                   <td className="muted">{item.query_type || 'score'}</td>
                   <td className="table-actions">
                     {item.id && (
@@ -74,7 +76,7 @@ export default function History() {
                     )}
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

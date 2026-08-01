@@ -3,7 +3,7 @@ import time
 from conftest import strong_password
 
 
-async def fake_score_company(company_name: str):
+async def fake_score_company(company_name: str, identity=None):
     normalized = company_name.strip().lower()
     score = 760 if normalized.startswith("alpha") else 640
     return {
@@ -47,7 +47,8 @@ def test_full_authenticated_workspace_flow(api, monkeypatch):
     assert api.get("/api/health").json()["status"] == "ok"
     assert api.get("/api/metrics").status_code == 404
     assert api.get("/api/compliance/status").status_code == 200
-    assert len(api.get("/api/signals").json()["signals"]) == 14
+    assert len(api.get("/api/signals").json()["signals"]) == 10
+    assert len(api.get("/api/providers").json()["providers"]) == 3
     assert api.get("/api/cache/stats").status_code == 200
 
     assert api.get("/api/watchlist").status_code == 401
@@ -89,6 +90,18 @@ def test_full_authenticated_workspace_flow(api, monkeypatch):
     assert scored.status_code == 200
     assert scored.json()["private_score"] == 760
 
+    detailed = api.post(
+        "/api/score",
+        headers=headers,
+        json={"legal_name": "Alpha Industries", "country_code": "US", "registration_number": "A-123"},
+    )
+    assert detailed.status_code == 200
+    assert api.post(
+        "/api/score",
+        headers=headers,
+        json={"legal_name": "Alpha Industries", "provider_ids": {"unknown": "entity-1"}},
+    ).status_code == 422
+
     compared = api.get("/api/compare?companies=Alpha%20Industries,Beta%20Labs", headers=headers)
     assert compared.status_code == 200
     assert compared.json()["winner"] == "Alpha Industries"
@@ -121,7 +134,7 @@ def test_full_authenticated_workspace_flow(api, monkeypatch):
 
     history = api.get("/api/history?limit=100", headers=headers)
     assert history.status_code == 200
-    assert len(history.json()) == 3
+    assert len(history.json()) == 4
     history_id = history.json()[0]["id"]
     assert api.delete(f"/api/history/{history_id}", headers=headers).status_code == 204
     assert api.delete("/api/history", headers=headers).status_code == 204

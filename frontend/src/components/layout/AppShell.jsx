@@ -10,7 +10,7 @@ import {
   Settings,
   User,
 } from 'lucide-react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate } from '../../router'
 
 import { API_BASE } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
@@ -26,7 +26,7 @@ const navItems = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
 
-export default function AppShell() {
+export default function AppShell({ children }) {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
 
@@ -72,7 +72,7 @@ export default function AppShell() {
       </aside>
       <main className="workspace">
         <TopBar />
-        <Outlet />
+        {children}
       </main>
     </div>
   )

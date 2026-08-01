@@ -1,5 +1,5 @@
 """
-PrivateLens API v3
+PrivateLens API v4
 Private company financial health research platform.
 """
 from contextlib import asynccontextmanager
@@ -129,6 +129,7 @@ def health():
         "observability": {"sentry": bool(settings.SENTRY_DSN), "metrics": bool(settings.METRICS_TOKEN)},
         "data_mode": settings.DATA_MODE,
         "licensed_data": bool(settings.LICENSED_DATA_GATEWAY_URL and settings.LICENSED_DATA_API_KEY),
+        "model_release_stage": settings.MODEL_RELEASE_STAGE,
     }
 
 

@@ -57,7 +57,7 @@ async def compare(
         winner_score = None
         analysis = (
             "No peer ranking was produced because one or more companies are below the verified-data "
-            "coverage required for a financial-health rating. Preliminary evidence scores are shown for research only."
+            "coverage, entity, provider-diversity, and model-approval gates required for a rating."
         )
     return {
         "companies": valid,

@@ -1,5 +1,5 @@
 import { ArrowRight, BarChart3, CheckCircle2, Database, Gauge, LockKeyhole, ShieldCheck } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from '../router'
 
 import ScoreDial from '../components/common/ScoreDial'
 
@@ -30,7 +30,7 @@ export default function Landing() {
             <Link to="/login" className="btn btn-ghost">Open dashboard</Link>
           </div>
           <div className="trust-row">
-            <span><CheckCircle2 size={15} /> 14 signal model</span>
+            <span><CheckCircle2 size={15} /> Evidence release gates</span>
             <span><CheckCircle2 size={15} /> SQLite or Postgres ready</span>
             <span><CheckCircle2 size={15} /> Render + Vercel deployable</span>
           </div>
@@ -48,20 +48,20 @@ export default function Landing() {
             <div className="preview-stack">
               <div><small>Company</small><strong>Acme Manufacturing</strong></div>
               <div><small>Risk level</small><strong>Unrated</strong></div>
-              <div><small>Score inputs</small><strong>2 / 14</strong></div>
+              <div><small>Score inputs</small><strong>0 / 5</strong></div>
             </div>
           </div>
           <div className="preview-bars">
             {[
-              ['Brand presence', 72],
-              ['Hiring velocity', 54],
-              ['Cash flow', 0],
-              ['Legal records', 0],
+              ['Brand presence', null],
+              ['Hiring velocity', null],
+              ['Cash flow', null],
+              ['Legal records', null],
             ].map(([label, value]) => (
               <div key={label}>
                 <span>{label}</span>
-                <div><i style={{ width: `${value}%` }} /></div>
-                <strong>{value || 'N/A'}</strong>
+                <div><i style={{ width: value ? `${value}%` : '0%' }} /></div>
+                <strong>{value ?? 'N/A'}</strong>
               </div>
             ))}
           </div>
@@ -70,7 +70,7 @@ export default function Landing() {
 
       <section className="landing-band">
         {[
-          [ShieldCheck, 'Evidence-aware scoring', 'Verified inputs, context-only sources, and unavailable data stay clearly separated.'],
+          [ShieldCheck, 'Evidence-gated scoring', 'Entity match, freshness, provider diversity, and model approval are enforced before a rating.'],
           [Database, 'Persistent workspace', 'Users keep history, reports, settings, and saved company lists.'],
           [BarChart3, 'Peer comparison', 'Compare up to four companies and spot outlier risk faster.'],
           [LockKeyhole, 'JWT authentication', 'Account-based API access with deployment-friendly environment config.'],

@@ -23,5 +23,12 @@ def compliance_status():
         },
         "data_mode": settings.DATA_MODE,
         "licensed_data_gateway": bool(settings.LICENSED_DATA_GATEWAY_URL and settings.LICENSED_DATA_API_KEY),
+        "model_governance": {
+            "release_stage": settings.MODEL_RELEASE_STAGE,
+            "validation_reference": settings.MODEL_VALIDATION_REFERENCE,
+            "validation_artifact_bound": bool(settings.MODEL_VALIDATION_SHA256),
+            "approved_by": settings.MODEL_APPROVED_BY,
+            "ratings_enabled": settings.MODEL_RELEASE_STAGE == "validated",
+        },
         "legal_notice": "PrivateLens is a research tool and does not provide credit, investment, legal, or lending advice.",
     }

@@ -1,7 +1,16 @@
 import { apiRequest } from './client'
 
-export function getScore(company) {
-  return apiRequest(`/api/score?company=${encodeURIComponent(company)}`)
+export function getScore(company, identity = {}) {
+  return apiRequest('/api/score', {
+    method: 'POST',
+    body: JSON.stringify({
+      legal_name: company,
+      country_code: identity.country_code || 'US',
+      ...(identity.registration_number ? { registration_number: identity.registration_number } : {}),
+      ...(identity.postal_code ? { postal_code: identity.postal_code } : {}),
+      ...(identity.address ? { address: identity.address } : {}),
+    }),
+  })
 }
 
 export function compareCompanies(companies) {

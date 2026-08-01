@@ -1,9 +1,10 @@
 import { ArrowRight, Gauge } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from '../router'
 
 import { resetPassword } from '../api/auth'
 import ErrorNotice from '../components/common/ErrorNotice'
+import { useAuth } from '../context/AuthContext'
 
 export default function ResetPassword() {
   const [params] = useSearchParams()
@@ -12,6 +13,7 @@ export default function ResetPassword() {
   const [form, setForm] = useState({ token: defaultToken, new_password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const { showFlashMessage } = useAuth()
 
   const submit = async (event) => {
     event.preventDefault()
@@ -19,6 +21,7 @@ export default function ResetPassword() {
     setLoading(true)
     try {
       await resetPassword(form)
+      showFlashMessage('Password reset. Sign in with your new password.')
       navigate('/login', { replace: true })
     } catch (err) {
       setError(err.message || 'Unable to reset password.')

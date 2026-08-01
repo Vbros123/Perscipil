@@ -1,4 +1,4 @@
-"""Score assembly and report formatting helpers."""
+"""Score assembly, evidence snapshots, and report formatting."""
 from __future__ import annotations
 
 import copy
@@ -8,10 +8,13 @@ from datetime import datetime, timezone
 from typing import Any
 
 from core.cache import score_cache
+from core.config import get_settings
 from services.collectors import collect_all
+from services.evidence import CompanyIdentity, evidence_hash
 from services.scorer import compute_score
 
 DISCLAIMER = "PrivateLens is a research tool and does not provide credit, investment, legal, or lending advice."
+settings = get_settings()
 
 
 def normalize_company(name: str) -> str:
@@ -30,9 +33,11 @@ def risk_level(score: int, scoring_status: str = "rated") -> str:
     return "High"
 
 
-async def score_company(company_name: str) -> dict[str, Any]:
-    company_clean = company_name.strip()
-    cache_key = normalize_company(company_clean)
+async def score_company(company_name: str, identity: CompanyIdentity | None = None) -> dict[str, Any]:
+    identity = identity or CompanyIdentity(legal_name=company_name)
+    company_clean = identity.legal_name
+    normalized_name = normalize_company(company_clean)
+    cache_key = "score:v4:" + identity.cache_key()
     start = time.perf_counter()
 
     cached = await score_cache.get(cache_key)
@@ -43,13 +48,17 @@ async def score_company(company_name: str) -> dict[str, Any]:
         response["report"] = build_company_report(response)
         return response
 
-    signals = await collect_all(company_clean)
-    result = compute_score(signals)
+    collection = await collect_all(identity)
+    signals = collection["signals"]
+    evidence = collection["evidence"]
+    result = compute_score(signals, model_release_stage=settings.MODEL_RELEASE_STAGE)
+    snapshot_hash = evidence_hash(signals, evidence, identity)
     elapsed = round(time.perf_counter() - start, 3)
 
     response = {
         "company_name": company_clean,
-        "normalized_name": cache_key,
+        "normalized_name": normalized_name,
+        "entity": identity.model_dump(mode="json", exclude_none=True),
         "private_score": result["private_score"],
         "scoring_status": result["scoring_status"],
         "rating": result["rating"],
@@ -58,10 +67,15 @@ async def score_company(company_name: str) -> dict[str, Any]:
         "breakdown": result["breakdown"],
         "category_summary": result["category_summary"],
         "risk_flags": result["risk_flags"],
+        "evidence": evidence,
         "meta": {
             **result["meta"],
             "cached": False,
             "computed_at": datetime.now(timezone.utc).isoformat(),
+            "input_snapshot_hash": snapshot_hash,
+            "validation_reference": settings.MODEL_VALIDATION_REFERENCE,
+            "validation_sha256": settings.MODEL_VALIDATION_SHA256,
+            "model_approved_by": settings.MODEL_APPROVED_BY,
             "legal_disclaimer": DISCLAIMER,
         },
         "elapsed_seconds": elapsed,
@@ -77,16 +91,17 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
     rating_status = risk_level(score, scoring_status)
     breakdown = score_data.get("breakdown", [])
     live = [item for item in breakdown if not item.get("is_simulated", True)]
-    simulated = [item for item in breakdown if item.get("is_simulated", True)]
+    unavailable = [item for item in breakdown if item.get("is_simulated", True)]
     scored = [item for item in breakdown if item.get("used_in_score", False)]
     strongest = sorted(scored, key=lambda item: item.get("raw_score", 0), reverse=True)[:3]
     weakest = sorted(scored, key=lambda item: item.get("raw_score", 100))[:3]
 
-    headline = (
-        f"{score_data.get('company_name')} is unrated because verified coverage is below the required threshold."
-        if scoring_status != "rated" else
-        f"{score_data.get('company_name')} has a {rating_status.lower()} research risk profile."
-    )
+    if scoring_status == "validation_hold":
+        headline = f"{score_data.get('company_name')} has sufficient evidence, but the model is awaiting validation approval."
+    elif scoring_status != "rated":
+        headline = f"{score_data.get('company_name')} is unrated because required evidence gates were not met."
+    else:
+        headline = f"{score_data.get('company_name')} has a {rating_status.lower()} research risk profile."
 
     return {
         "headline": headline,
@@ -107,21 +122,26 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
         "strongest_signals": strongest,
         "watch_signals": weakest,
         "live_signal_count": len(live),
-        "simulated_signal_count": len(simulated),
+        "simulated_signal_count": len(unavailable),
         "data_quality": {
             "confidence": score_data.get("meta", {}).get("confidence", 0),
+            "evidence_coverage": score_data.get("meta", {}).get("evidence_coverage", 0),
             "scored_weight": score_data.get("meta", {}).get("scored_weight", 0),
+            "providers_used": score_data.get("meta", {}).get("providers_used", []),
+            "gates": score_data.get("meta", {}).get("gates", {}),
+            "input_snapshot_hash": score_data.get("meta", {}).get("input_snapshot_hash"),
             "live_sources": [item.get("signal") for item in live],
-            "simulated_sources": [item.get("signal") for item in simulated],
+            "unavailable_sources": [item.get("signal") for item in unavailable],
         },
         "recommended_next_steps": [
-            "Request bank-statement or open-banking cash-flow validation.",
-            "Verify UCC lien and court-record status before material exposure.",
-            "Monitor hiring, news sentiment, and vendor-risk changes weekly.",
+            "Confirm the legal entity using its registration number and registered address.",
+            "Review the underlying licensed provider records before material exposure.",
+            "Obtain company consent for current accounting or banking evidence where appropriate.",
         ],
         "limitations": [
-            "Unavailable-source signals contain no fabricated values and are excluded from the score.",
-            "Preliminary evidence scores are not financial-health ratings or standalone decisions.",
+            "Unavailable and context-only inputs are excluded from the score.",
+            "A rating is blocked until entity, coverage, provider-diversity, and model-approval gates pass.",
+            "Provider data rights, retention, and derived-output permissions remain governed by signed contracts.",
         ],
         "disclaimer": DISCLAIMER,
     }

@@ -1,6 +1,6 @@
 import { BookmarkPlus, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from '../router'
 
 import { getScore } from '../api/companies'
 import { addWatchlist } from '../api/watchlist'
@@ -8,11 +8,19 @@ import Badge from '../components/common/Badge'
 import ErrorNotice from '../components/common/ErrorNotice'
 import PageHeader from '../components/common/PageHeader'
 import CompanySummary from '../components/company/CompanySummary'
+import EvidencePanel from '../components/company/EvidencePanel'
 import SignalCard from '../components/company/SignalCard'
 
 export default function CompanyReport() {
   const { company } = useParams()
+  const [searchParams] = useSearchParams()
   const companyName = decodeURIComponent(company || '')
+  const identity = {
+    country_code: searchParams.get('country_code') || 'US',
+    registration_number: searchParams.get('registration_number') || '',
+    postal_code: searchParams.get('postal_code') || '',
+  }
+  const requestKey = [companyName, identity.country_code, identity.registration_number, identity.postal_code].join('|')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -27,8 +35,8 @@ export default function CompanyReport() {
       setError('')
       setMessage('')
       try {
-        if (reportRequest.current.company !== companyName) {
-          reportRequest.current = { company: companyName, promise: getScore(companyName) }
+        if (reportRequest.current.company !== requestKey) {
+          reportRequest.current = { company: requestKey, promise: getScore(companyName, identity) }
         }
         const data = await reportRequest.current.promise
         if (mounted) setResult(data)
@@ -40,7 +48,7 @@ export default function CompanyReport() {
     }
     if (companyName) load()
     return () => { mounted = false }
-  }, [companyName])
+  }, [companyName, identity.country_code, identity.registration_number, identity.postal_code])
 
   const save = async () => {
     if (!result) return
@@ -49,8 +57,8 @@ export default function CompanyReport() {
     try {
       await addWatchlist({
         company_name: result.company_name,
-        private_score: result.private_score,
-        rating: result.rating,
+        private_score: result.scoring_status === 'rated' ? result.private_score : null,
+        rating: result.scoring_status === 'rated' ? result.rating : 'Unrated',
         color: result.color,
         notes: result.report?.headline,
         tags: [result.report?.risk_level || result.rating],
@@ -85,6 +93,7 @@ export default function CompanyReport() {
       {result && !loading && (
         <>
           <CompanySummary result={result} />
+          <EvidencePanel result={result} />
           <section className="panel">
             <div className="panel-head">
               <div><div className="eyebrow">Report narrative</div><h2>{result.report?.headline}</h2></div>

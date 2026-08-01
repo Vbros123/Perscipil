@@ -25,6 +25,8 @@ services:
         value: resend
       - key: DATA_MODE
         value: public
+      - key: MODEL_RELEASE_STAGE
+        value: shadow
       - key: JWT_SECRET
         sync: false
       - key: SMTP_FROM_EMAIL

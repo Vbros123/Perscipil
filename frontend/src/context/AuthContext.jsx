@@ -9,11 +9,13 @@ export function AuthProvider({ children }) {
   const [token, setTokenState] = useState(() => getToken())
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(Boolean(getToken()))
+  const [flashMessage, setFlashMessage] = useState('')
 
   const persistSession = useCallback((session) => {
     setToken(session.access_token)
     setTokenState(session.access_token)
     setUser(session.user)
+    setFlashMessage('')
   }, [])
 
   const refreshUser = useCallback(async () => {
@@ -61,11 +63,13 @@ export function AuthProvider({ children }) {
     return session.user
   }, [persistSession])
 
-  const logout = useCallback(async () => {
-    try {
-      if (getToken()) await authApi.logout()
-    } catch {
-      // Local logout still wins if the network is gone or the token is already invalid.
+  const logout = useCallback(async (remote = true) => {
+    if (remote) {
+      try {
+        if (getToken()) await authApi.logout()
+      } catch {
+        // Local logout still wins if the network is gone or the token is already invalid.
+      }
     }
     setToken(null)
     setTokenState(null)
@@ -88,7 +92,9 @@ export function AuthProvider({ children }) {
     logout,
     refreshUser,
     updateUser,
-  }), [token, user, loading, signup, login, logout, refreshUser, updateUser])
+    flashMessage,
+    showFlashMessage: setFlashMessage,
+  }), [token, user, loading, signup, login, logout, refreshUser, updateUser, flashMessage])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

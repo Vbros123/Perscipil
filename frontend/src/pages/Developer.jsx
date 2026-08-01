@@ -16,7 +16,9 @@ const endpoints = [
   ['GET', '/api/auth/me', 'Current user'],
   ['GET', '/api/compliance/status', 'Production readiness status'],
   ['GET', '/api/metrics', 'Bearer-token protected metrics'],
-  ['GET', '/api/score?company=NAME', 'Company report'],
+  ['GET', '/api/score?company=NAME', 'Backward-compatible report'],
+  ['POST', '/api/score', 'Legal-entity report request'],
+  ['GET', '/api/providers', 'Licensed provider readiness'],
   ['GET', '/api/compare?companies=A,B', 'Peer comparison'],
   ['GET', '/api/watchlist', 'Saved companies'],
   ['GET', '/api/history', 'Search history'],
@@ -40,15 +42,17 @@ export default function Developer() {
           <div><div className="eyebrow">Base URL</div><h2>{API_BASE}</h2></div>
           <button className="icon-button" onClick={() => copy(API_BASE)} aria-label="Copy API base"><Copy size={16} /></button>
         </div>
-        <pre className="code-block">{`curl "${API_BASE}/api/score?company=Cargill" \\
-  -H "Authorization: Bearer <token>"`}</pre>
+        <pre className="code-block">{`curl -X POST "${API_BASE}/api/score" \\
+  -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"legal_name":"Acme Manufacturing LLC","country_code":"US","registration_number":"A-123"}'`}</pre>
       </section>
       <section className="table-card">
         <table>
           <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
           <tbody>
             {endpoints.map(([method, path, description]) => (
-              <tr key={path}>
+              <tr key={`${method}-${path}`}>
                 <td><Badge tone={method === 'GET' ? 'positive' : 'accent'}>{method}</Badge></td>
                 <td className="mono">{path}</td>
                 <td className="muted">{description}</td>
@@ -59,7 +63,7 @@ export default function Developer() {
       </section>
       <section className="notice notice-info">
         <Code2 size={17} />
-        Unavailable-source signals are identified under <code>is_simulated</code> and excluded from scoring.
+        Only entity-resolved, fresh licensed observations can set <code>used_in_score=true</code>. Public context and unavailable inputs are excluded.
       </section>
     </div>
   )

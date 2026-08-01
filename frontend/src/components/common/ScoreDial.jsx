@@ -1,7 +1,7 @@
 const clamp = (value, low = 0, high = 1000) => Math.max(low, Math.min(high, Number(value) || 0))
 
 export default function ScoreDial({ score = 0, rating, color = '#2dd4bf', size = 164 }) {
-  const isUnrated = rating === 'Preliminary'
+  const isUnrated = !rating || ['Preliminary', 'Validation hold'].includes(rating)
   const normalized = isUnrated ? 0 : clamp(score)
   const radius = 58
   const circumference = 2 * Math.PI * radius

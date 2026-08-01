@@ -1,6 +1,6 @@
 import { ArrowRight, Gauge } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from '../router'
 
 import { requestPasswordReset } from '../api/auth'
 import ErrorNotice from '../components/common/ErrorNotice'

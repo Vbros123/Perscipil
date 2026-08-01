@@ -66,6 +66,10 @@ def store_company_event(db, user, score_data: dict, query_type: str = "score") -
             private_score=score_data["private_score"],
             rating=score_data["rating"],
             report_json=score_data.get("report", {}),
+            scoring_status=score_data.get("scoring_status"),
+            model_version=score_data.get("meta", {}).get("model_version"),
+            input_snapshot_hash=score_data.get("meta", {}).get("input_snapshot_hash"),
+            evidence_json=score_data.get("evidence", {}),
         )
     )
     db.commit()

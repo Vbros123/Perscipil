@@ -1,5 +1,5 @@
 import { Gauge } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from '../router'
 
 export default function NotFound() {
   return (

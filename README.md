@@ -11,9 +11,11 @@ PrivateLens is a research tool and does not provide credit, investment, legal, o
 ## Product Surface
 
 - Account signup, login, JWT sessions, and `/api/auth/me`
-- Password reset, password change, email verification scaffolding, and auth audit events
+- Working password reset, password rotation, email verification, and auth audit flows
 - SMTP transactional email delivery for password reset and email verification
-- PrivateScore company reports with observed, context-only, and unavailable-source labels
+- Evidence-gated company reports with observed, context-only, and unavailable-source labels
+- Strict legal-entity resolution, licensed provider provenance, freshness checks, and reproducible input hashes
+- Shadow-mode model governance that blocks ratings before independent validation approval
 - User-specific history and saved company watchlists
 - Peer comparison for two to four companies
 - Workspace settings, account profile, pricing, and developer pages
@@ -52,6 +54,7 @@ backend/
     settings.py
   services/
     collectors.py
+    evidence.py
     licensed_data.py
     scorer.py
     history.py
@@ -63,7 +66,14 @@ ops/
   compliance_controls.md
   external_security_review.md
   licensed_data_gateway_contract.md
+  licensed_provider_plan.md
+  model_validation_runbook.md
   production_cutover.md
+
+provider_gateway/
+  main.py
+  providers/creditsafe.py
+  tests/
 
 frontend/
   src/
@@ -121,6 +131,10 @@ Vite runs on `http://localhost:3001`.
 | `DATA_MODE` | No | `public` | Use `public` for open-data collectors or `licensed` for paid-provider overrides. |
 | `LICENSED_DATA_GATEWAY_URL` | In licensed mode | | Normalization gateway for paid data feeds. |
 | `LICENSED_DATA_API_KEY` | In licensed mode | | Bearer token for the gateway. |
+| `MODEL_RELEASE_STAGE` | No | `shadow` | Use `validated` only after independent approval. |
+| `MODEL_VALIDATION_REFERENCE` | With validated release | | Immutable validation packet ID. |
+| `MODEL_VALIDATION_SHA256` | With validated release | | SHA-256 of the approved packet. |
+| `MODEL_APPROVED_BY` | With validated release | | Independent reviewer or committee. |
 | `ALLOWED_ORIGINS` | No | `*` | Comma-separated origins, for example `https://privatelens.vercel.app`. |
 | `FRONTEND_URL` | No | `http://localhost:5173` | Added to CORS when `ALLOWED_ORIGINS` is not `*`. |
 | `ALLOWED_HOSTS` | No | `*` | Set to `privatelens.onrender.com` in production. |
@@ -150,7 +164,8 @@ Vite runs on `http://localhost:3001`.
 | `GET` | `/api/compliance/status` | Readiness and compliance integration status |
 | `GET` | `/api/metrics` | Protected Prometheus-style metrics |
 | `PATCH` | `/api/users/me` | Update profile |
-| `GET` | `/api/score?company=NAME` | Score a company and return a report |
+| `GET` | `/api/score?company=NAME` | Backward-compatible company report request |
+| `POST` | `/api/score` | Report request with legal name, country, registration number, postcode, and provider IDs |
 | `GET` | `/api/compare?companies=A,B` | Compare two to four companies |
 | `GET` | `/api/watchlist` | List saved companies |
 | `POST` | `/api/watchlist` | Save or update a company |
@@ -162,6 +177,7 @@ Vite runs on `http://localhost:3001`.
 | `GET` | `/api/settings` | Get workspace settings |
 | `PATCH` | `/api/settings` | Update workspace settings |
 | `GET` | `/api/signals` | Signal library |
+| `GET` | `/api/providers` | Licensed provider catalog and gateway readiness |
 | `GET` | `/api/health` | Health check |
 
 Authenticated endpoints use:
@@ -190,13 +206,32 @@ SQLite works locally only. Production startup intentionally fails unless `DATABA
 2. Build command: `npm run build`
 3. Output directory: `dist`
 4. Environment variable: `VITE_API_URL=https://privatelens.onrender.com`
-5. `frontend/vercel.json` rewrites all app routes to `index.html` for React Router.
+5. `frontend/vercel.json` rewrites all app routes to `index.html` for the client-side Wouter router.
 
 ## Data Sources And Limits
 
 Live/free collectors currently include SEC EDGAR, Wikipedia, DuckDuckGo, HackerNews, and USASpending.gov. These sources are research context only and do not produce a financial-health rating. External pages such as job boards may block automated requests; unavailable signals are left unscored and do not contain generated company values.
 
-`DATA_MODE=public` uses the built-in public/open-data collectors and intentionally returns `Unrated` because no public collector is treated as calibrated financial-health evidence. Paid data can later be enabled with `DATA_MODE=licensed` and `LICENSED_DATA_GATEWAY_URL`; the gateway must return the normalized schema documented in `ops/licensed_data_gateway_contract.md`. A rating is produced only when entity-resolved score inputs cover at least 50% of configured model weight.
+`DATA_MODE=public` uses the built-in public/open-data collectors and intentionally returns `Unrated` because no public collector is treated as calibrated financial-health evidence. Licensed mode accepts raw, entity-resolved observations through the v2 gateway contract. Vendor-produced composite scores are rejected.
+
+The selected provider architecture is Creditsafe Connect for commercial credit and payment behavior, Middesk for business verification and legal records, and Codat for company-consented accounting or banking aggregates. See `ops/licensed_provider_plan.md` for official documentation, procurement, permitted-use review, and activation order.
+
+A numeric rating requires at least 70% model-weight coverage, verified legal identity, and two licensed providers. It remains blocked with `Validation hold` until `MODEL_RELEASE_STAGE=validated` and production includes an approved `MODEL_VALIDATION_REFERENCE`, its `MODEL_VALIDATION_SHA256`, and `MODEL_APPROVED_BY`.
+
+## Provider Gateway
+
+The reference gateway currently implements Creditsafe authentication, exact entity matching, credit report retrieval, provider timestamp checks, and raw observation normalization.
+
+```bash
+cd provider_gateway
+cp .env.example .env
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8010
+```
+
+Keep `CREDITSAFE_ENABLED=false` until you have a signed contract, sandbox credentials, and a non-secret contract reference. Middesk requires a completed verification business ID and webhook flow. Codat requires a subject-company consent flow and connection ID.
 
 ## Operational Readiness
 
@@ -204,6 +239,8 @@ Live/free collectors currently include SEC EDGAR, Wikipedia, DuckDuckGo, HackerN
 - External security review scope: `ops/external_security_review.md`
 - Legal/compliance controls: `ops/compliance_controls.md`
 - Licensed data gateway contract: `ops/licensed_data_gateway_contract.md`
+- Licensed provider and activation plan: `ops/licensed_provider_plan.md`
+- Model validation and approval process: `ops/model_validation_runbook.md`
 - Production cutover checklist: `ops/production_cutover.md`
 
 Free-tier backups are created by `.github/workflows/postgres-backup.yml` as encrypted, seven-day GitHub Actions artifacts. Add `PRODUCTION_DATABASE_URL` and `BACKUP_ENCRYPTION_KEY` as GitHub Actions secrets before enabling the workflow.
@@ -231,6 +268,20 @@ Backend automated tests:
 ```bash
 cd backend
 ENVIRONMENT=test JWT_SECRET=test-secret-value-that-is-long-enough-for-production-checks AUTH_TOKEN_RETURN_IN_RESPONSE=true pytest -q
+```
+
+Provider gateway tests:
+
+```bash
+cd provider_gateway
+PYTHONPATH=. pytest -q
+```
+
+Out-of-time model validation:
+
+```bash
+cd backend
+PYTHONPATH=. python scripts/validate_model.py holdout.jsonl --output validation-result.json
 ```
 
 Migrations:

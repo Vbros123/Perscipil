@@ -56,6 +56,10 @@ class CompanyReport(Base):
     private_score: Mapped[int] = mapped_column(Integer, nullable=False)
     rating: Mapped[str] = mapped_column(String(60), nullable=False)
     report_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    scoring_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    model_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    input_snapshot_hash: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
+    evidence_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
 
     user = relationship("User", back_populates="reports")

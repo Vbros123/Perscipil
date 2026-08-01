@@ -1,7 +1,7 @@
 """
-PrivateLens Data Collectors v3
+PrivateLens Data Collectors v4
 Real data sources: SEC EDGAR, Wikipedia, DuckDuckGo, Indeed, HackerNews, USASpending
-Unavailable without licensed sources: UCC, court records, open banking, reviews, social, supply chain
+Licensed score inputs are supplied by the evidence gateway and transformed locally.
 """
 import httpx
 import asyncio
@@ -9,7 +9,8 @@ import math
 import re
 from datetime import datetime, timedelta
 from core.config import get_settings
-from services.licensed_data import apply_licensed_overrides
+from services.evidence import CompanyIdentity
+from services.licensed_data import collect_licensed_signals
 
 settings = get_settings()
 
@@ -55,9 +56,7 @@ async def collect_sec_edgar(name: str) -> dict:
                 }
     except Exception:
         pass
-    return _sim_generic(name, "sec_edgar", "SEC / Regulatory Filings", "📋", "legal",
-                        "Simulated — real data from SEC EDGAR (available with funding).",
-                        "https://efts.sec.gov")
+    return _unavailable_signal("SEC / Regulatory Filings", "📋", "legal", "https://efts.sec.gov")
 
 
 async def collect_wikipedia(name: str) -> dict:
@@ -108,8 +107,7 @@ async def collect_wikipedia(name: str) -> dict:
                 }
     except Exception:
         pass
-    return _sim_generic(name, "brand", "Brand Legitimacy & Web Presence", "🌐", "digital",
-                        "Simulated — real data from Wikipedia API.", "https://en.wikipedia.org")
+    return _unavailable_signal("Brand Legitimacy & Web Presence", "🌐", "digital", "https://en.wikipedia.org")
 
 
 async def collect_news_sentiment(name: str) -> dict:
@@ -179,9 +177,7 @@ async def collect_news_sentiment(name: str) -> dict:
         }
     except Exception:
         pass
-    return _sim_generic(name, "news", "News & Media Sentiment", "📰", "sentiment",
-                        "Simulated — real data requires NewsAPI/GDELT (available with funding).",
-                        "https://newsapi.org")
+    return _unavailable_signal("News & Media Sentiment", "📰", "sentiment", "https://newsapi.org")
 
 
 async def collect_job_postings(name: str) -> dict:
@@ -225,9 +221,7 @@ async def collect_job_postings(name: str) -> dict:
             }
     except Exception:
         pass
-    return _sim_generic(name, "jobs", "Job Posting Velocity", "💼", "operational",
-                        "Simulated — real data requires Indeed/LinkedIn API (available with funding).",
-                        "https://www.indeed.com")
+    return _unavailable_signal("Job Posting Velocity", "💼", "operational", "https://www.indeed.com")
 
 
 async def collect_usa_spending(name: str) -> dict:
@@ -285,15 +279,12 @@ async def collect_usa_spending(name: str) -> dict:
                 }
     except Exception:
         pass
-    return _sim_generic(name, "govt", "Government Contract Awards", "🏛️", "financial",
-                        "Simulated — real data from USASpending.gov API (available with funding).",
-                        "https://www.usaspending.gov")
+    return _unavailable_signal("Government Contract Awards", "🏛️", "financial", "https://www.usaspending.gov")
 
 
-# ── SIMULATED COLLECTORS ───────────────────────────────────────────────────────
+# ── UNAVAILABLE FALLBACKS ──────────────────────────────────────────────────────
 
-def _sim_generic(name, seed_key, signal, icon, category, insight, source_url,
-                 lo=35, hi=85) -> dict:
+def _unavailable_signal(signal: str, icon: str, category: str, source_url: str) -> dict:
     return {
         "signal": signal,
         "icon": icon,
@@ -316,46 +307,14 @@ def _normalize_entity_name(value: str) -> str:
     return " ".join(words)
 
 
-def sim_ucc(name: str) -> dict:
-    return _sim_generic(name, "ucc", "UCC Filings & Lien Activity", "⚖️", "financial", "", "https://www.ucc.gov")
-
-
-def sim_court(name: str) -> dict:
-    return _sim_generic(name, "court", "Court Records & Litigation", "🏛️", "legal", "", "https://www.courtlistener.com")
-
-
-def sim_open_banking(name: str) -> dict:
-    return _sim_generic(name, "banking", "Open Banking Payment Flows", "🏦", "financial", "", "https://www.consumerfinance.gov/section1033/")
-
-
-def sim_reviews(name: str) -> dict:
-    return _sim_generic(name, "reviews", "Employee & Customer Reviews", "⭐", "sentiment", "", "https://www.glassdoor.com")
-
-
-def sim_web_traffic(name: str) -> dict:
-    return _sim_generic(name, "traffic", "Web Traffic Trends", "📈", "digital", "", "https://www.similarweb.com")
-
-
-def sim_social(name: str) -> dict:
-    return _sim_generic(name, "social", "Social Media Activity", "📱", "digital", "", "https://twitter.com")
-
-
-def sim_supply_chain(name: str) -> dict:
-    return _sim_generic(name, "supply", "Supply Chain & Vendor Signals", "🔗", "operational", "", "https://www.riskmethods.net")
-
-
-def sim_payment_behavior(name: str) -> dict:
-    return _sim_generic(name, "payment", "B2B Payment Behavior", "💳", "financial", "", "https://www.dnb.com")
-
-
-def sim_insider_sentiment(name: str) -> dict:
-    return _sim_generic(name, "insider", "Insider & Employee Sentiment", "🧠", "sentiment", "", "https://www.glassdoor.com")
-
-
 # ── AGGREGATE ──────────────────────────────────────────────────────────────────
 
-async def collect_all(company_name: str) -> list[dict]:
-    """Run all collectors concurrently. Returns list of signal dicts."""
+async def collect_all(identity: CompanyIdentity | str) -> dict:
+    """Run public context collectors and the licensed evidence client concurrently."""
+    if isinstance(identity, str):
+        identity = CompanyIdentity(legal_name=identity)
+    company_name = identity.legal_name
+
     real = await asyncio.gather(
         collect_sec_edgar(company_name),
         collect_wikipedia(company_name),
@@ -365,23 +324,12 @@ async def collect_all(company_name: str) -> list[dict]:
         return_exceptions=False
     )
 
-    simulated = [
-        sim_ucc(company_name),
-        sim_court(company_name),
-        sim_open_banking(company_name),
-        sim_reviews(company_name),
-        sim_web_traffic(company_name),
-        sim_social(company_name),
-        sim_supply_chain(company_name),
-        sim_payment_behavior(company_name),
-        sim_insider_sentiment(company_name),
-    ]
-    simulated = await apply_licensed_overrides(company_name, simulated)
+    licensed, evidence_audit = await collect_licensed_signals(identity)
 
     # Deduplicate by signal name
     seen, out = set(), []
-    for s in list(real) + simulated:
+    for s in licensed + list(real):
         if s["signal"] not in seen:
             seen.add(s["signal"])
             out.append(s)
-    return out
+    return {"signals": out, "evidence": evidence_audit}

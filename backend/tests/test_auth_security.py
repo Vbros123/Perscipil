@@ -17,6 +17,14 @@ def test_signup_login_password_reset_and_email_verification(api):
     assert me.json()["email"] == email
     assert me.json()["email_verified"] is False
 
+    wrong_current_password = api.post(
+        "/api/auth/change-password",
+        headers=headers,
+        json={"current_password": "WrongPassword!2026", "new_password": strong_password("Changed")},
+    )
+    assert wrong_current_password.status_code == 400
+    assert api.get("/api/auth/me", headers=headers).status_code == 200
+
     verify_issue = api.post("/api/auth/request-email-verification", headers=headers)
     assert verify_issue.status_code == 200
     verification_token = verify_issue.json()["verification_token"]

@@ -1,6 +1,6 @@
 import { BookmarkCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from '../router'
 
 import { deleteWatchlistItem, listWatchlist } from '../api/watchlist'
 import EmptyState from '../components/common/EmptyState'

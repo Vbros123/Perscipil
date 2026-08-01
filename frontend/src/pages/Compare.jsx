@@ -1,6 +1,6 @@
 import { BarChart3, Loader2 } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from '../router'
 
 import { compareCompanies } from '../api/companies'
 import ErrorNotice from '../components/common/ErrorNotice'

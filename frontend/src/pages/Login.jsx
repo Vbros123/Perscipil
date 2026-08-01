@@ -1,6 +1,6 @@
 import { ArrowRight, Gauge } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from '../router'
 
 import ErrorNotice from '../components/common/ErrorNotice'
 import { useAuth } from '../context/AuthContext'
@@ -9,7 +9,7 @@ export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login } = useAuth()
+  const { login, flashMessage } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -36,6 +36,7 @@ export default function Login() {
       <section className="auth-card">
         <div className="eyebrow">Workspace access</div>
         <h1>Log in</h1>
+        {flashMessage && <div className="notice notice-success">{flashMessage}</div>}
         <ErrorNotice message={error} />
         <form onSubmit={submit} className="form-stack">
           <label>Email<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></label>

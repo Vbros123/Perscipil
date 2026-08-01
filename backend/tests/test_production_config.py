@@ -1,3 +1,5 @@
+import pytest
+
 from core.config import Settings
 
 
@@ -31,3 +33,28 @@ def test_licensed_mode_requires_gateway_credentials():
         assert "Licensed data gateway" in str(exc)
     else:
         raise AssertionError("Licensed mode accepted missing gateway credentials")
+
+
+def test_validated_release_requires_documented_approval():
+    settings = production_settings(
+        DATA_MODE="licensed",
+        LICENSED_DATA_GATEWAY_URL="https://gateway.example.com/v2/evidence",
+        LICENSED_DATA_API_KEY="g" * 32,
+        MODEL_RELEASE_STAGE="validated",
+    )
+
+    with pytest.raises(RuntimeError, match="validation reference and approver"):
+        settings.validate_runtime()
+
+
+def test_validated_release_accepts_governance_metadata():
+    settings = production_settings(
+        DATA_MODE="licensed",
+        LICENSED_DATA_GATEWAY_URL="https://gateway.example.com/v2/evidence",
+        LICENSED_DATA_API_KEY="g" * 32,
+        MODEL_RELEASE_STAGE="validated",
+        MODEL_VALIDATION_REFERENCE="validation-2026-001",
+        MODEL_VALIDATION_SHA256="a" * 64,
+        MODEL_APPROVED_BY="Model Risk Committee",
+    )
+    settings.validate_runtime()

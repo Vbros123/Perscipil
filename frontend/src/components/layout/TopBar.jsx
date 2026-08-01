@@ -1,6 +1,6 @@
 import { ArrowRight, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from '../../router'
 
 import { useAuth } from '../../context/AuthContext'
 

@@ -6,7 +6,7 @@ import PageHeader from '../components/common/PageHeader'
 import { useAuth } from '../context/AuthContext'
 
 export default function Account() {
-  const { user, updateUser } = useAuth()
+  const { user, updateUser, logout, showFlashMessage } = useAuth()
   const [form, setForm] = useState({
     first_name: user?.first_name || '',
     last_name: user?.last_name || '',
@@ -43,7 +43,8 @@ export default function Account() {
     try {
       await changePassword(passwordForm)
       setPasswordForm({ current_password: '', new_password: '' })
-      setMessage('Password changed. Sign in again on other devices.')
+      showFlashMessage('Password changed. Sign in with your new password.')
+      await logout(false)
     } catch (err) {
       setError(err.message || 'Unable to change password.')
     } finally {

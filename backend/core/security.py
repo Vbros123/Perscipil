@@ -7,7 +7,8 @@ from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError
 from sqlalchemy.orm import Session
 
 from core.config import get_settings
@@ -77,7 +78,7 @@ def _decode_payload(token: str) -> dict:
             issuer=settings.JWT_ISSUER,
             audience=settings.JWT_AUDIENCE,
         )
-    except (JWTError, ValueError):
+    except (PyJWTError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired authentication token.",
