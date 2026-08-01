@@ -1,11 +1,10 @@
 """
-PrivateLens Data Collectors v2
+PrivateLens Data Collectors v3
 Real data sources: SEC EDGAR, Wikipedia, DuckDuckGo, Indeed, HackerNews, USASpending
-Simulated (clearly labeled): UCC, court records, open banking, reviews, social, supply chain
+Unavailable without licensed sources: UCC, court records, open banking, reviews, social, supply chain
 """
 import httpx
 import asyncio
-import random
 import math
 import re
 from datetime import datetime, timedelta
@@ -18,15 +17,6 @@ HEADERS = {"User-Agent": "PrivateLens/2.0 research@privatelens.io"}
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
-
-def _seed(name: str, signal: str) -> random.Random:
-    """Deterministic per-company-per-signal seed so simulated values are stable."""
-    r = random.Random()
-    # Add day-of-year so simulated scores shift slightly each day (realistic drift)
-    day_offset = datetime.now().timetuple().tm_yday
-    r.seed(hash(name.lower().strip() + signal + str(day_offset)) % (2**32))
-    return r
-
 
 def _clamp(val: float, lo: float = 0, hi: float = 100) -> float:
     return max(lo, min(hi, val))
@@ -49,20 +39,18 @@ async def collect_sec_edgar(name: str) -> dict:
             if resp.status_code == 200:
                 data = resp.json()
                 hits = data.get("hits", {}).get("total", {}).get("value", 0)
-                # More filings for a private company = unusual, slight risk flag
-                score = _clamp(80 - hits * 5) if hits > 0 else 72
                 return {
                     "signal": "SEC / Regulatory Filings",
                     "icon": "📋",
                     "category": "legal",
-                    "display": f"{hits} filing(s) in past 2 years",
-                    "raw_score": score,
+                    "display": f"{hits:,} unverified keyword match(es) in the past 2 years",
+                    "raw_score": 50,
                     "is_simulated": False,
+                    "is_scored": False,
                     "source_url": f"https://efts.sec.gov/LATEST/search-index?q=%22{name.replace(' ', '+')}%22",
                     "insight": (
-                        f"Found {hits} SEC filing(s). Private companies rarely file — elevated count may signal regulatory scrutiny."
-                        if hits > 0 else
-                        "No SEC filings found — typical for private companies with no public obligations."
+                        "SEC full-text results are shown as research context only. Keyword matches can refer to customers, "
+                        "competitors, exhibits, or similarly named entities, so filing volume is not used as a risk signal."
                     ),
                 }
     except Exception:
@@ -102,8 +90,9 @@ async def collect_wikipedia(name: str) -> dict:
                     "display": f"Wikipedia page found ({words} words){age_note}",
                     "raw_score": score,
                     "is_simulated": False,
+                    "is_scored": False,
                     "source_url": f"https://en.wikipedia.org/wiki/{slug}",
-                    "insight": f"Established public profile with {words}-word Wikipedia article.{age_note} Stronger profile = higher brand legitimacy score.",
+                    "insight": f"Established public profile with a {words}-word Wikipedia article.{age_note} Shown as identity and web-presence context only.",
                 }
             else:
                 return {
@@ -113,6 +102,7 @@ async def collect_wikipedia(name: str) -> dict:
                     "display": "No Wikipedia presence found",
                     "raw_score": 30,
                     "is_simulated": False,
+                    "is_scored": False,
                     "source_url": f"https://en.wikipedia.org/wiki/{slug}",
                     "insight": "No Wikipedia page detected. May indicate a smaller, newer, or deliberately low-profile company.",
                 }
@@ -179,8 +169,13 @@ async def collect_news_sentiment(name: str) -> dict:
             "display": f"{label} — {pos} positive, {neg} negative signals, {hn_hits} HN mentions",
             "raw_score": score,
             "is_simulated": False,
+            "is_scored": False,
             "source_url": f"https://hn.algolia.com/api/v1/search?query={name.replace(' ', '%20')}&tags=story",
-            "insight": f"NLP analysis across DuckDuckGo and HackerNews: {pos} positive indicator(s), {neg} negative indicator(s). {hn_hits} Hacker News story mention(s).",
+            "insight": (
+                f"Keyword context across DuckDuckGo and HackerNews: {pos} positive indicator(s), "
+                f"{neg} negative indicator(s), and {hn_hits} Hacker News mention(s). "
+                "Entity resolution and sentiment are not strong enough for this signal to affect the score."
+            ),
         }
     except Exception:
         pass
@@ -224,8 +219,9 @@ async def collect_job_postings(name: str) -> dict:
                 "display": f"{raw_count:,} active job posting(s) — {trend}",
                 "raw_score": score,
                 "is_simulated": False,
+                "is_scored": False,
                 "source_url": f"https://www.indeed.com/jobs?q=%22{name.replace(' ', '+')}%22",
-                "insight": f"{trend} ({raw_count:,} postings). High hiring velocity is a strong leading indicator of growth and financial health.",
+                "insight": f"{trend} ({raw_count:,} postings). Public job-search results are not entity-resolved enough to affect the financial-health score.",
             }
     except Exception:
         pass
@@ -258,22 +254,33 @@ async def collect_usa_spending(name: str) -> dict:
             if resp.status_code == 200:
                 data = resp.json()
                 results = data.get("results", [])
-                total = sum(r.get("Award Amount", 0) or 0 for r in results)
-                count = len(results)
-                score = _clamp(45 + min(count * 4, 40) + min(math.log10(total + 1) * 3, 15)) if count > 0 else 40
+                requested = _normalize_entity_name(name)
+                verified_results = [
+                    item for item in results
+                    if _normalize_entity_name(item.get("Recipient Name", "")) == requested
+                ]
+                total = sum(r.get("Award Amount", 0) or 0 for r in verified_results)
+                count = len(verified_results)
+                unverified_count = len(results) - count
+                score = _clamp(55 + min(count * 4, 30) + min(math.log10(total + 1) * 2, 15)) if count > 0 else 50
 
                 return {
                     "signal": "Government Contract Awards",
                     "icon": "🏛️",
                     "category": "financial",
-                    "display": f"{count} contract(s) — ${total:,.0f} total value" if count > 0 else "No federal contracts found",
+                    "display": (
+                        f"{count} exact-name contract(s) — ${total:,.0f} total value"
+                        if count > 0 else
+                        f"No exact-name contracts; {unverified_count} broader match(es) excluded"
+                    ),
                     "raw_score": score,
                     "is_simulated": False,
+                    "is_scored": False,
                     "source_url": f"https://www.usaspending.gov/search/?query={name.replace(' ', '%20')}",
                     "insight": (
-                        f"Found {count} federal contract(s) totaling ${total:,.0f}. Government contracts signal revenue diversification and credibility."
+                        f"Found {count} exact-name federal contract(s) totaling ${total:,.0f}. Shown as revenue-context evidence only."
                         if count > 0 else
-                        "No federal contracts found — common for most private companies."
+                        "Broader recipient-name matches are shown as context only and excluded from scoring."
                     ),
                 }
     except Exception:
@@ -287,174 +294,62 @@ async def collect_usa_spending(name: str) -> dict:
 
 def _sim_generic(name, seed_key, signal, icon, category, insight, source_url,
                  lo=35, hi=85) -> dict:
-    r = _seed(name, seed_key)
-    score = _clamp(r.uniform(lo, hi))
     return {
         "signal": signal,
         "icon": icon,
         "category": category,
-        "display": f"Estimated score: {score:.0f}/100 (simulated)",
-        "raw_score": score,
+        "display": "Verified data unavailable — not scored",
+        "raw_score": 50,
         "is_simulated": True,
         "source_url": source_url,
-        "insight": insight,
+        "insight": (
+            "No verified data was available for this signal during the current run. "
+            "It is excluded from the evidence score."
+        ),
     }
+
+
+def _normalize_entity_name(value: str) -> str:
+    value = re.sub(r"[^a-z0-9 ]", " ", value.lower())
+    suffixes = {"inc", "incorporated", "llc", "ltd", "limited", "corp", "corporation", "company", "co"}
+    words = [word for word in value.split() if word not in suffixes]
+    return " ".join(words)
 
 
 def sim_ucc(name: str) -> dict:
-    r = _seed(name, "ucc")
-    filings = r.randint(0, 9)
-    score = _clamp(100 - filings * 11)
-    risk = "Low debt risk" if filings < 2 else ("Moderate lien activity" if filings < 5 else "Elevated lien exposure")
-    return {
-        "signal": "UCC Filings & Lien Activity",
-        "icon": "⚖️",
-        "category": "financial",
-        "display": f"~{filings} estimated UCC filing(s) — {risk}",
-        "raw_score": score,
-        "is_simulated": True,
-        "source_url": "https://www.ucc.gov",
-        "insight": f"Simulated — {risk}. UCC filings reveal real-time debt and collateral obligations. Real data requires state-level API access (available with funding).",
-    }
+    return _sim_generic(name, "ucc", "UCC Filings & Lien Activity", "⚖️", "financial", "", "https://www.ucc.gov")
 
 
 def sim_court(name: str) -> dict:
-    r = _seed(name, "court")
-    cases = r.randint(0, 6)
-    score = _clamp(100 - cases * 14)
-    status = "Clean legal record" if cases == 0 else f"{cases} estimated litigation event(s)"
-    return {
-        "signal": "Court Records & Litigation",
-        "icon": "🏛️",
-        "category": "legal",
-        "display": status,
-        "raw_score": score,
-        "is_simulated": True,
-        "source_url": "https://www.courtlistener.com",
-        "insight": f"Simulated — {status.lower()}. Real court record data requires PACER or CourtListener API (available with funding).",
-    }
+    return _sim_generic(name, "court", "Court Records & Litigation", "🏛️", "legal", "", "https://www.courtlistener.com")
 
 
 def sim_open_banking(name: str) -> dict:
-    r = _seed(name, "banking_v2")
-    score = _clamp(r.uniform(32, 94))
-    dso = int(r.uniform(15, 85))
-    health = "Strong" if score > 72 else ("Moderate" if score > 48 else "Stressed")
-    return {
-        "signal": "Open Banking Payment Flows",
-        "icon": "🏦",
-        "category": "financial",
-        "display": f"Cash flow health: {score:.0f}/100 — {health} (est. DSO: {dso} days)",
-        "raw_score": score,
-        "is_simulated": True,
-        "source_url": "https://www.consumerfinance.gov/section1033/",
-        "insight": f"Simulated — {health} cash flow signal (estimated DSO {dso} days). Real data unlocked by Section 1033 open banking API (available with funding).",
-    }
+    return _sim_generic(name, "banking", "Open Banking Payment Flows", "🏦", "financial", "", "https://www.consumerfinance.gov/section1033/")
 
 
 def sim_reviews(name: str) -> dict:
-    r = _seed(name, "reviews_v2")
-    rating = round(r.uniform(2.4, 4.9), 1)
-    count = r.randint(12, 4800)
-    score = _clamp((rating / 5) * 100)
-    label = "Excellent" if rating >= 4.3 else ("Good" if rating >= 3.6 else ("Mixed" if rating >= 3.0 else "Poor"))
-    return {
-        "signal": "Employee & Customer Reviews",
-        "icon": "⭐",
-        "category": "sentiment",
-        "display": f"{rating}/5.0 avg — {label} (~{count:,} reviews estimated)",
-        "raw_score": score,
-        "is_simulated": True,
-        "source_url": "https://www.glassdoor.com",
-        "insight": f"Simulated — {label} internal sentiment ({rating}/5.0 across ~{count:,} estimated reviews). Real data requires Glassdoor/G2 API (available with funding).",
-    }
+    return _sim_generic(name, "reviews", "Employee & Customer Reviews", "⭐", "sentiment", "", "https://www.glassdoor.com")
 
 
 def sim_web_traffic(name: str) -> dict:
-    r = _seed(name, "traffic_v2")
-    monthly = r.randint(800, 3500000)
-    trend_val = r.uniform(-18, 32)
-    trend = f"+{trend_val:.1f}% MoM" if trend_val > 0 else f"{trend_val:.1f}% MoM"
-    score = _clamp(math.log10(monthly + 1) * 14)
-    return {
-        "signal": "Web Traffic Trends",
-        "icon": "📈",
-        "category": "digital",
-        "display": f"~{monthly:,} est. monthly visits — {trend}",
-        "raw_score": score,
-        "is_simulated": True,
-        "source_url": "https://www.similarweb.com",
-        "insight": f"Simulated — ~{monthly:,} estimated monthly visits, trending {trend}. Real traffic data requires SimilarWeb API (available with funding).",
-    }
+    return _sim_generic(name, "traffic", "Web Traffic Trends", "📈", "digital", "", "https://www.similarweb.com")
 
 
 def sim_social(name: str) -> dict:
-    r = _seed(name, "social_v2")
-    followers = r.randint(200, 800000)
-    engagement = round(r.uniform(0.4, 7.2), 1)
-    score = _clamp(math.log10(followers + 1) * 14 + engagement * 2)
-    return {
-        "signal": "Social Media Activity",
-        "icon": "📱",
-        "category": "digital",
-        "display": f"~{followers:,} est. followers — {engagement}% engagement rate",
-        "raw_score": score,
-        "is_simulated": True,
-        "source_url": "https://twitter.com",
-        "insight": f"Simulated — {engagement}% engagement rate across estimated {followers:,} followers. Real data requires social platform API (available with funding).",
-    }
+    return _sim_generic(name, "social", "Social Media Activity", "📱", "digital", "", "https://twitter.com")
 
 
 def sim_supply_chain(name: str) -> dict:
-    r = _seed(name, "supply_v2")
-    score = _clamp(r.uniform(38, 94))
-    risk_level = "Low" if score > 72 else ("Medium" if score > 50 else "High")
-    vendor_count = r.randint(5, 200)
-    return {
-        "signal": "Supply Chain & Vendor Signals",
-        "icon": "🔗",
-        "category": "operational",
-        "display": f"Supply chain risk: {risk_level} — ~{vendor_count} est. vendors",
-        "raw_score": score,
-        "is_simulated": True,
-        "source_url": "https://www.riskmethods.net",
-        "insight": f"Simulated — {risk_level} supply chain risk across ~{vendor_count} estimated vendor relationships. Real data requires supply chain API (available with funding).",
-    }
+    return _sim_generic(name, "supply", "Supply Chain & Vendor Signals", "🔗", "operational", "", "https://www.riskmethods.net")
 
 
 def sim_payment_behavior(name: str) -> dict:
-    r = _seed(name, "payment_v2")
-    dso = r.randint(12, 95)
-    score = _clamp(100 - dso * 0.9)
-    health = "Excellent" if dso < 28 else ("Good" if dso < 45 else ("Fair" if dso < 65 else "Poor"))
-    return {
-        "signal": "B2B Payment Behavior",
-        "icon": "💳",
-        "category": "financial",
-        "display": f"Est. DSO: {dso} days — {health} payment discipline",
-        "raw_score": score,
-        "is_simulated": True,
-        "source_url": "https://www.dnb.com",
-        "insight": f"Simulated — {health} payment behavior (DSO {dso} days). Lower DSO = faster collections = healthier cash flow. Real data from D&B Paydex (available with funding).",
-    }
+    return _sim_generic(name, "payment", "B2B Payment Behavior", "💳", "financial", "", "https://www.dnb.com")
 
 
 def sim_insider_sentiment(name: str) -> dict:
-    r = _seed(name, "insider_v2")
-    score = _clamp(r.uniform(30, 92))
-    retention = round(r.uniform(55, 98), 1)
-    ceo_approval = round(r.uniform(40, 98), 0)
-    mood = "Positive" if score > 70 else ("Neutral" if score > 50 else "Negative")
-    return {
-        "signal": "Insider & Employee Sentiment",
-        "icon": "🧠",
-        "category": "sentiment",
-        "display": f"Est. retention: {retention}% — CEO approval: {ceo_approval:.0f}% — {mood}",
-        "raw_score": score,
-        "is_simulated": True,
-        "source_url": "https://www.glassdoor.com",
-        "insight": f"Simulated — {mood} insider sentiment. Est. {retention}% retention and {ceo_approval:.0f}% CEO approval. Real data requires Glassdoor API (available with funding).",
-    }
+    return _sim_generic(name, "insider", "Insider & Employee Sentiment", "🧠", "sentiment", "", "https://www.glassdoor.com")
 
 
 # ── AGGREGATE ──────────────────────────────────────────────────────────────────

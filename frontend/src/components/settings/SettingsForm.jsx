@@ -26,7 +26,7 @@ export default function SettingsForm({ values, setValues, onSubmit, loading }) {
         <input type="checkbox" checked={Boolean(values.weekly_digest)} onChange={(event) => setValues({ ...values, weekly_digest: event.target.checked })} />
       </label>
       <label className="switch-row">
-        <span>Show simulated data labels</span>
+        <span>Show unavailable-source labels</span>
         <input type="checkbox" checked={Boolean(values.simulated_data_labels)} onChange={(event) => setValues({ ...values, simulated_data_labels: event.target.checked })} />
       </label>
       <button className="btn btn-primary" disabled={loading}>{loading ? 'Saving' : 'Save settings'}</button>

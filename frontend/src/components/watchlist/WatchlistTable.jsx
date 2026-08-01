@@ -25,8 +25,8 @@ export default function WatchlistTable({ items, onDelete }) {
                   <ExternalLink size={13} />
                 </Link>
               </td>
-              <td className="mono">{item.private_score || '-'}</td>
-              <td>{item.rating ? <Badge tone="accent">{item.rating}</Badge> : '-'}</td>
+              <td className="mono">{item.rating === 'Preliminary' ? 'N/A' : (item.private_score || '-')}</td>
+              <td>{item.rating ? <Badge tone="accent">{item.rating === 'Preliminary' ? 'Unrated' : item.rating}</Badge> : '-'}</td>
               <td className="muted">{item.notes || 'No notes'}</td>
               <td className="table-actions">
                 <button className="icon-button" onClick={() => onDelete(item.id)} aria-label={`Remove ${item.company_name}`}>

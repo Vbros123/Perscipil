@@ -44,24 +44,24 @@ export default function Landing() {
             <strong>company_report.json</strong>
           </header>
           <div className="preview-grid">
-            <ScoreDial score={742} rating="Strong" color="#2dd4bf" />
+            <ScoreDial score={630} rating="Preliminary" color="#64748B" />
             <div className="preview-stack">
               <div><small>Company</small><strong>Acme Manufacturing</strong></div>
-              <div><small>Risk level</small><strong>Moderate</strong></div>
-              <div><small>Live signals</small><strong>5 / 14</strong></div>
+              <div><small>Risk level</small><strong>Unrated</strong></div>
+              <div><small>Score inputs</small><strong>2 / 14</strong></div>
             </div>
           </div>
           <div className="preview-bars">
             {[
-              ['Cash flow', 78],
-              ['Legal risk', 62],
-              ['Hiring velocity', 84],
-              ['Market sentiment', 68],
+              ['Brand presence', 72],
+              ['Hiring velocity', 54],
+              ['Cash flow', 0],
+              ['Legal records', 0],
             ].map(([label, value]) => (
               <div key={label}>
                 <span>{label}</span>
                 <div><i style={{ width: `${value}%` }} /></div>
-                <strong>{value}</strong>
+                <strong>{value || 'N/A'}</strong>
               </div>
             ))}
           </div>
@@ -70,7 +70,7 @@ export default function Landing() {
 
       <section className="landing-band">
         {[
-          [ShieldCheck, 'Research-grade scoring', 'Weighted signal model with live and modelled data clearly separated.'],
+          [ShieldCheck, 'Evidence-aware scoring', 'Verified inputs, context-only sources, and unavailable data stay clearly separated.'],
           [Database, 'Persistent workspace', 'Users keep history, reports, settings, and saved company lists.'],
           [BarChart3, 'Peer comparison', 'Compare up to four companies and spot outlier risk faster.'],
           [LockKeyhole, 'JWT authentication', 'Account-based API access with deployment-friendly environment config.'],

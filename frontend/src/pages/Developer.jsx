@@ -59,7 +59,7 @@ export default function Developer() {
       </section>
       <section className="notice notice-info">
         <Code2 size={17} />
-        Simulated signals are always identified in API responses under <code>is_simulated</code>.
+        Unavailable-source signals are identified under <code>is_simulated</code> and excluded from scoring.
       </section>
     </div>
   )

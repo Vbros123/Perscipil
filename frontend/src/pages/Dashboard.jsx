@@ -44,14 +44,15 @@ export default function Dashboard() {
 
   const metrics = useMemo(() => {
     const last = history[0]
-    const avgScore = history.length
-      ? Math.round(history.reduce((sum, item) => sum + Number(item.private_score || 0), 0) / history.length)
+    const ratedHistory = history.filter((item) => item.rating !== 'Preliminary')
+    const avgScore = ratedHistory.length
+      ? Math.round(ratedHistory.reduce((sum, item) => sum + Number(item.private_score || 0), 0) / ratedHistory.length)
       : '-'
     return [
       { icon: Building2, label: 'Companies screened', value: history.length, detail: 'Workspace history', tone: 'accent' },
       { icon: BookmarkCheck, label: 'Saved companies', value: watchlist.length, detail: 'Active watchlist', tone: 'positive' },
       { icon: LineChart, label: 'Average score', value: avgScore, detail: 'Recent searches', tone: 'neutral' },
-      { icon: Database, label: 'Signal library', value: signals.length || 14, detail: 'Live and modelled inputs', tone: 'warning' },
+      { icon: Database, label: 'Signal library', value: signals.length || 14, detail: 'Observed and unavailable inputs', tone: 'warning' },
       { icon: Clock3, label: 'Last check', value: last?.company_name || '-', detail: last?.rating || 'No history yet', tone: 'neutral' },
     ]
   }, [history, watchlist, signals])
@@ -77,7 +78,7 @@ export default function Dashboard() {
               {history.slice(0, 6).map((item, index) => (
                 <Link key={`${item.company_name}-${item.id || index}`} to={`/reports/${encodeURIComponent(item.company_name)}`}>
                   <span>{item.company_name}</span>
-                  <strong style={{ color: item.color }}>{item.private_score}</strong>
+                  <strong style={{ color: item.color }}>{item.rating === 'Preliminary' ? 'N/A' : item.private_score}</strong>
                 </Link>
               ))}
             </div>

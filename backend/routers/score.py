@@ -59,19 +59,19 @@ async def list_signals():
     """List all 14 signal types with data source status."""
     return {
         "signals": [
-            {"name": "Open Banking Payment Flows",    "status": "simulated", "weight": "13%", "unlocks_with": "Section 1033 API"},
-            {"name": "B2B Payment Behavior",          "status": "simulated", "weight": "12%", "unlocks_with": "D&B Paydex API"},
-            {"name": "Job Posting Velocity",          "status": "live",      "weight": "11%", "source": "Indeed"},
-            {"name": "UCC Filings & Lien Activity",   "status": "simulated", "weight": "10%", "unlocks_with": "State UCC APIs"},
-            {"name": "Court Records & Litigation",    "status": "simulated", "weight": "9%",  "unlocks_with": "PACER / CourtListener"},
-            {"name": "News & Media Sentiment",        "status": "live",      "weight": "8%",  "source": "DuckDuckGo + HackerNews"},
-            {"name": "Employee & Customer Reviews",   "status": "simulated", "weight": "7%",  "unlocks_with": "Glassdoor API"},
-            {"name": "Insider & Employee Sentiment",  "status": "simulated", "weight": "6%",  "unlocks_with": "Glassdoor API"},
-            {"name": "Web Traffic Trends",            "status": "simulated", "weight": "6%",  "unlocks_with": "SimilarWeb API"},
-            {"name": "Brand Legitimacy",              "status": "live",      "weight": "5%",  "source": "Wikipedia API"},
-            {"name": "SEC / Regulatory Filings",      "status": "live",      "weight": "5%",  "source": "SEC EDGAR"},
-            {"name": "Social Media Activity",         "status": "simulated", "weight": "4%",  "unlocks_with": "Twitter/LinkedIn API"},
-            {"name": "Supply Chain & Vendor Signals", "status": "simulated", "weight": "3%",  "unlocks_with": "RiskMethods API"},
-            {"name": "Government Contract Awards",    "status": "live",      "weight": "1%",  "source": "USASpending.gov"},
+            {"name": "Open Banking Payment Flows",    "status": "unavailable", "weight": "13%", "unlocks_with": "Section 1033 API"},
+            {"name": "B2B Payment Behavior",          "status": "unavailable", "weight": "12%", "unlocks_with": "D&B Paydex API"},
+            {"name": "Job Posting Velocity",          "status": "context-only", "weight": "11%", "source": "Indeed"},
+            {"name": "UCC Filings & Lien Activity",   "status": "unavailable", "weight": "10%", "unlocks_with": "State UCC APIs"},
+            {"name": "Court Records & Litigation",    "status": "unavailable", "weight": "9%",  "unlocks_with": "PACER / CourtListener"},
+            {"name": "News & Media Sentiment",        "status": "context-only", "weight": "8%",  "source": "DuckDuckGo + HackerNews"},
+            {"name": "Employee & Customer Reviews",   "status": "unavailable", "weight": "7%",  "unlocks_with": "Glassdoor API"},
+            {"name": "Insider & Employee Sentiment",  "status": "unavailable", "weight": "6%",  "unlocks_with": "Glassdoor API"},
+            {"name": "Web Traffic Trends",            "status": "unavailable", "weight": "6%",  "unlocks_with": "SimilarWeb API"},
+            {"name": "Brand Legitimacy",              "status": "context-only", "weight": "5%",  "source": "Wikipedia API"},
+            {"name": "SEC / Regulatory Filings",      "status": "context-only", "weight": "5%",  "source": "SEC EDGAR"},
+            {"name": "Social Media Activity",         "status": "unavailable", "weight": "4%",  "unlocks_with": "Twitter/LinkedIn API"},
+            {"name": "Supply Chain & Vendor Signals", "status": "unavailable", "weight": "3%",  "unlocks_with": "RiskMethods API"},
+            {"name": "Government Contract Awards",    "status": "context-only", "weight": "1%",  "source": "USASpending.gov"},
         ]
     }

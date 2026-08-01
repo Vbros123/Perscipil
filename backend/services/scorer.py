@@ -1,13 +1,12 @@
 """
-PrivateLens Scoring Engine v2
+PrivateLens Scoring Engine v3
 - Weighted multi-signal model
-- Confidence score based on real vs simulated signal ratio
+- Confidence based on verified, score-eligible weight coverage
 - Category-level sub-scores
 - Risk flag detection
 - Human-readable narrative generation
 """
 from typing import List, Dict, Any
-import math
 
 # Signal weights — higher = more predictive of financial distress
 # Based on academic literature on private company financial health indicators
@@ -45,6 +44,9 @@ RATING_BANDS = [
     (0,   "Critical",    "#D163A7", "Severe multi-category distress signals. Extreme risk — do not proceed without comprehensive independent verification."),
 ]
 
+MIN_RATING_COVERAGE = 0.50
+PRELIMINARY_COLOR = "#64748B"
+
 
 def _rating(score: int) -> tuple[str, str, str]:
     for threshold, label, color, summary in RATING_BANDS:
@@ -54,22 +56,25 @@ def _rating(score: int) -> tuple[str, str, str]:
 
 
 def compute_score(signals: List[Dict[str, Any]]) -> Dict[str, Any]:
-    total_weight = 0.0
+    scored_weight = 0.0
     weighted_sum = 0.0
     breakdown = []
-    category_scores: dict[str, list] = {}
+    category_scores: dict[str, list[tuple[float, float]]] = {}
     risk_flags = []
+    configured_weight_total = sum(WEIGHTS.values())
 
     for sig in signals:
         name = sig.get("signal", "")
         raw = float(sig.get("raw_score", 50))
         weight = WEIGHTS.get(name, 0.03)
         cat = sig.get("category", "operational")
+        is_simulated = sig.get("is_simulated", True)
+        is_scored = not is_simulated and sig.get("is_scored", True)
 
-        weighted_sum += raw * weight
-        total_weight += weight
-
-        category_scores.setdefault(cat, []).append(raw)
+        if is_scored:
+            weighted_sum += raw * weight
+            scored_weight += weight
+            category_scores.setdefault(cat, []).append((raw, weight))
 
         bd = {
             "signal": name,
@@ -79,44 +84,63 @@ def compute_score(signals: List[Dict[str, Any]]) -> Dict[str, Any]:
             "raw_score": round(raw, 1),
             "weight": weight,
             "weight_pct": f"{weight * 100:.0f}%",
-            "weighted_contribution": round(raw * weight, 2),
+            "effective_weight": weight if is_scored else 0.0,
+            "weighted_contribution": round(raw * weight, 2) if is_scored else 0.0,
             "display": sig.get("display", ""),
             "insight": sig.get("insight", ""),
-            "is_simulated": sig.get("is_simulated", True),
+            "is_simulated": is_simulated,
+            "used_in_score": is_scored,
             "source_url": sig.get("source_url", ""),
         }
         breakdown.append(bd)
 
         # Flag severe signals
-        if raw < 30 and weight >= 0.08:
+        if is_scored and raw < 30 and weight >= 0.08:
             risk_flags.append(f"⚠️ {name}: score {raw:.0f}/100 — high-weight signal in distress range")
 
-    # Normalize to 0-1000
-    normalized = (weighted_sum / total_weight) if total_weight > 0 else 50
+    # The score summarizes only score-eligible observed data. Unavailable inputs are excluded.
+    normalized = (weighted_sum / scored_weight) if scored_weight > 0 else 50
     private_score = max(0, min(1000, int(round(normalized * 10))))
+    coverage = round(scored_weight / configured_weight_total, 4) if configured_weight_total else 0.0
+    scoring_status = "rated" if coverage >= MIN_RATING_COVERAGE else "insufficient_data"
 
-    rating, color, summary = _rating(private_score)
+    if scoring_status == "rated":
+        rating, color, summary = _rating(private_score)
+    else:
+        rating = "Preliminary"
+        color = PRELIMINARY_COLOR
+        summary = (
+            f"Verified score coverage is {coverage:.0%}, below the {MIN_RATING_COVERAGE:.0%} "
+            "minimum required for a financial-health rating. The displayed evidence score uses "
+            "observed inputs only and must not be used as a standalone decision."
+        )
 
     # Category sub-scores
     category_summary = {}
     for cat, scores in category_scores.items():
-        avg = sum(scores) / len(scores)
+        category_weight = sum(weight for _, weight in scores)
+        avg = sum(score * weight for score, weight in scores) / category_weight
         category_summary[cat] = {
             "label": CATEGORY_LABELS.get(cat, cat.title()),
             "score": round(avg, 1),
             "signal_count": len(scores),
+            "weight_coverage": round(category_weight, 4),
         }
 
-    # Confidence — based on proportion of real signals
+    # Distinguish live context from live data that is sufficiently resolved to affect the score.
     real_count = sum(1 for s in signals if not s.get("is_simulated", True))
     sim_count = len(signals) - real_count
-    confidence = round(real_count / len(signals), 2) if signals else 0.0
+    scored_count = sum(
+        1 for s in signals
+        if not s.get("is_simulated", True) and s.get("is_scored", True)
+    )
 
     # Sort breakdown: highest weight first
     breakdown.sort(key=lambda x: x["weight"], reverse=True)
 
     return {
         "private_score": private_score,
+        "scoring_status": scoring_status,
         "rating": rating,
         "color": color,
         "summary": summary,
@@ -126,13 +150,17 @@ def compute_score(signals: List[Dict[str, Any]]) -> Dict[str, Any]:
         "meta": {
             "total_signals": len(signals),
             "real_signals": real_count,
+            "scored_signals": scored_count,
             "simulated_signals": sim_count,
-            "confidence": confidence,
-            "model_version": "v2.0",
+            "confidence": coverage,
+            "scored_weight": round(scored_weight, 4),
+            "minimum_rating_coverage": MIN_RATING_COVERAGE,
+            "scoring_status": scoring_status,
+            "model_version": "v3.0",
             "disclaimer": (
-                f"{real_count} of {len(signals)} signals use live data. "
-                f"{sim_count} are simulated with deterministic models — "
-                "they will be replaced with live API data with funding."
+                f"{scored_count} of {len(signals)} signals are observed and score-eligible, "
+                f"covering {coverage:.0%} of configured model weight. {sim_count} unavailable "
+                "signals are excluded from the score."
             ),
         },
     }

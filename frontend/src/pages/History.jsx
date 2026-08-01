@@ -63,8 +63,8 @@ export default function History() {
               {items.map((item, index) => (
                 <tr key={item.id || `${item.company_name}-${index}`}>
                   <td><Link className="table-link" to={`/reports/${encodeURIComponent(item.company_name)}`}>{item.company_name}</Link></td>
-                  <td className="mono" style={{ color: item.color }}>{item.private_score}</td>
-                  <td>{item.rating}</td>
+                  <td className="mono" style={{ color: item.color }}>{item.rating === 'Preliminary' ? 'N/A' : item.private_score}</td>
+                  <td>{item.rating === 'Preliminary' ? 'Unrated' : item.rating}</td>
                   <td className="muted">{item.query_type || 'score'}</td>
                   <td className="table-actions">
                     {item.id && (

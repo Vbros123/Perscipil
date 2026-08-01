@@ -1,8 +1,8 @@
 import { ArrowRight, Gauge } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
-import { updateSettings } from '../api/settings'
+import { getSettings, updateSettings } from '../api/settings'
 import ErrorNotice from '../components/common/ErrorNotice'
 import { useAuth } from '../context/AuthContext'
 
@@ -18,6 +18,20 @@ export default function Onboarding() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    let mounted = true
+    getSettings()
+      .then((settings) => {
+        if (mounted) {
+          setForm((current) => ({ ...current, risk_threshold: settings.risk_threshold }))
+        }
+      })
+      .catch((err) => {
+        if (mounted) setError(err.message || 'Unable to load workspace settings.')
+      })
+    return () => { mounted = false }
+  }, [])
 
   const update = (field) => (event) => setForm({ ...form, [field]: event.target.value })
 

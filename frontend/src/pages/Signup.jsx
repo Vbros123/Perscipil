@@ -1,5 +1,5 @@
 import { ArrowRight, Gauge } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import ErrorNotice from '../components/common/ErrorNotice'
@@ -16,8 +16,13 @@ export default function Signup() {
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { signup } = useAuth()
+  const signupInProgress = useRef(false)
+  const { signup, isAuthenticated } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (isAuthenticated && !signupInProgress.current) navigate('/dashboard', { replace: true })
+  }, [isAuthenticated, navigate])
 
   const update = (field) => (event) => setForm({ ...form, [field]: event.target.value })
 
@@ -25,10 +30,12 @@ export default function Signup() {
     event.preventDefault()
     setError('')
     setLoading(true)
+    signupInProgress.current = true
     try {
       await signup(form)
       navigate('/onboarding')
     } catch (err) {
+      signupInProgress.current = false
       setError(err.message || 'Unable to create account.')
     } finally {
       setLoading(false)

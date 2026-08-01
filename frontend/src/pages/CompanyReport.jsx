@@ -1,5 +1,5 @@
 import { BookmarkPlus, RefreshCw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { getScore } from '../api/companies'
@@ -18,6 +18,7 @@ export default function CompanyReport() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const reportRequest = useRef({ company: '', promise: null })
 
   useEffect(() => {
     let mounted = true
@@ -26,7 +27,10 @@ export default function CompanyReport() {
       setError('')
       setMessage('')
       try {
-        const data = await getScore(companyName)
+        if (reportRequest.current.company !== companyName) {
+          reportRequest.current = { company: companyName, promise: getScore(companyName) }
+        }
+        const data = await reportRequest.current.promise
         if (mounted) setResult(data)
       } catch (err) {
         if (mounted) setError(err.message || 'Unable to generate report.')
@@ -101,21 +105,23 @@ export default function CompanyReport() {
               </div>
             </div>
           </section>
-          <section className="panel">
-            <div className="panel-head">
-              <div><div className="eyebrow">Category health</div><h2>Risk domains</h2></div>
-            </div>
-            <div className="category-grid">
-              {result.report?.categories?.map((category) => (
-                <article key={category.key}>
-                  <span>{category.label}</span>
-                  <strong>{Math.round(category.score)}/100</strong>
-                  <div className="progress-track"><div className="progress-fill fill-accent" style={{ width: `${category.score}%` }} /></div>
-                  <small>{category.signal_count} signals</small>
-                </article>
-              ))}
-            </div>
-          </section>
+          {result.report?.categories?.length > 0 && (
+            <section className="panel">
+              <div className="panel-head">
+                <div><div className="eyebrow">Category health</div><h2>Risk domains</h2></div>
+              </div>
+              <div className="category-grid">
+                {result.report.categories.map((category) => (
+                  <article key={category.key}>
+                    <span>{category.label}</span>
+                    <strong>{Math.round(category.score)}/100</strong>
+                    <div className="progress-track"><div className="progress-fill fill-accent" style={{ width: `${category.score}%` }} /></div>
+                    <small>{category.signal_count} signals</small>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
           <section className="signal-grid">
             {result.breakdown?.map((signal) => <SignalCard key={signal.signal} signal={signal} />)}
           </section>

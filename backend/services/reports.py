@@ -18,7 +18,9 @@ def normalize_company(name: str) -> str:
     return re.sub(r"\s+", " ", name.strip().lower())
 
 
-def risk_level(score: int) -> str:
+def risk_level(score: int, scoring_status: str = "rated") -> str:
+    if scoring_status != "rated":
+        return "Unrated"
     if score >= 750:
         return "Low"
     if score >= 550:
@@ -49,6 +51,7 @@ async def score_company(company_name: str) -> dict[str, Any]:
         "company_name": company_clean,
         "normalized_name": cache_key,
         "private_score": result["private_score"],
+        "scoring_status": result["scoring_status"],
         "rating": result["rating"],
         "color": result["color"],
         "summary": result["summary"],
@@ -70,15 +73,25 @@ async def score_company(company_name: str) -> dict[str, Any]:
 
 def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
     score = int(score_data.get("private_score", 0))
+    scoring_status = score_data.get("scoring_status") or score_data.get("meta", {}).get("scoring_status", "rated")
+    rating_status = risk_level(score, scoring_status)
     breakdown = score_data.get("breakdown", [])
     live = [item for item in breakdown if not item.get("is_simulated", True)]
     simulated = [item for item in breakdown if item.get("is_simulated", True)]
-    strongest = sorted(breakdown, key=lambda item: item.get("raw_score", 0), reverse=True)[:3]
-    weakest = sorted(breakdown, key=lambda item: item.get("raw_score", 100))[:3]
+    scored = [item for item in breakdown if item.get("used_in_score", False)]
+    strongest = sorted(scored, key=lambda item: item.get("raw_score", 0), reverse=True)[:3]
+    weakest = sorted(scored, key=lambda item: item.get("raw_score", 100))[:3]
+
+    headline = (
+        f"{score_data.get('company_name')} is unrated because verified coverage is below the required threshold."
+        if scoring_status != "rated" else
+        f"{score_data.get('company_name')} has a {rating_status.lower()} research risk profile."
+    )
 
     return {
-        "headline": f"{score_data.get('company_name')} has a {risk_level(score).lower()} research risk profile.",
-        "risk_level": risk_level(score),
+        "headline": headline,
+        "risk_level": rating_status,
+        "scoring_status": scoring_status,
         "score": score,
         "rating": score_data.get("rating"),
         "summary": score_data.get("summary"),
@@ -97,6 +110,7 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
         "simulated_signal_count": len(simulated),
         "data_quality": {
             "confidence": score_data.get("meta", {}).get("confidence", 0),
+            "scored_weight": score_data.get("meta", {}).get("scored_weight", 0),
             "live_sources": [item.get("signal") for item in live],
             "simulated_sources": [item.get("signal") for item in simulated],
         },
@@ -106,8 +120,8 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
             "Monitor hiring, news sentiment, and vendor-risk changes weekly.",
         ],
         "limitations": [
-            "Some signals are simulated and clearly labeled until licensed data feeds are connected.",
-            "Scores are screening outputs, not standalone decisions.",
+            "Unavailable-source signals contain no fabricated values and are excluded from the score.",
+            "Preliminary evidence scores are not financial-health ratings or standalone decisions.",
         ],
         "disclaimer": DISCLAIMER,
     }

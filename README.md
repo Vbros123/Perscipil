@@ -13,7 +13,7 @@ PrivateLens is a research tool and does not provide credit, investment, legal, o
 - Account signup, login, JWT sessions, and `/api/auth/me`
 - Password reset, password change, email verification scaffolding, and auth audit events
 - SMTP transactional email delivery for password reset and email verification
-- PrivateScore company reports with live/modelled signal labels
+- PrivateScore company reports with observed, context-only, and unavailable-source labels
 - User-specific history and saved company watchlists
 - Peer comparison for two to four companies
 - Workspace settings, account profile, pricing, and developer pages
@@ -194,9 +194,9 @@ SQLite works locally only. Production startup intentionally fails unless `DATABA
 
 ## Data Sources And Limits
 
-Live/free collectors currently include SEC EDGAR, Wikipedia, DuckDuckGo, HackerNews, and USASpending.gov. Some external pages such as job boards may block automated requests, in which case PrivateLens falls back to deterministic modelled signals.
+Live/free collectors currently include SEC EDGAR, Wikipedia, DuckDuckGo, HackerNews, and USASpending.gov. These sources are research context only and do not produce a financial-health rating. External pages such as job boards may block automated requests; unavailable signals are left unscored and do not contain generated company values.
 
-`DATA_MODE=public` uses the built-in public/open-data collectors and keeps modelled signals visibly labeled. Paid data can later be enabled with `DATA_MODE=licensed` and `LICENSED_DATA_GATEWAY_URL`; the gateway must return the normalized schema documented in `ops/licensed_data_gateway_contract.md`. When a licensed signal is returned, PrivateLens includes provider/license metadata.
+`DATA_MODE=public` uses the built-in public/open-data collectors and intentionally returns `Unrated` because no public collector is treated as calibrated financial-health evidence. Paid data can later be enabled with `DATA_MODE=licensed` and `LICENSED_DATA_GATEWAY_URL`; the gateway must return the normalized schema documented in `ops/licensed_data_gateway_contract.md`. A rating is produced only when entity-resolved score inputs cover at least 50% of configured model weight.
 
 ## Operational Readiness
 

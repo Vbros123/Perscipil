@@ -41,16 +41,28 @@ async def compare(
         for result in valid:
             store_company_event(db, current_user, result, query_type="compare")
 
-    winner = max(valid, key=lambda item: item["private_score"])
-    low = min(result["private_score"] for result in valid)
+    rated = [result for result in valid if result.get("scoring_status") == "rated"]
+    if len(rated) == len(valid):
+        winner = max(rated, key=lambda item: item["private_score"])
+        low = min(result["private_score"] for result in rated)
+        winner_name = winner["company_name"]
+        winner_score = winner["private_score"]
+        analysis = (
+            f"{winner_name} leads this peer set with a PrivateScore of "
+            f"{winner_score}/1000 ({winner['rating']}). Gap vs lowest: "
+            f"{winner_score - low} points."
+        )
+    else:
+        winner_name = None
+        winner_score = None
+        analysis = (
+            "No peer ranking was produced because one or more companies are below the verified-data "
+            "coverage required for a financial-health rating. Preliminary evidence scores are shown for research only."
+        )
     return {
         "companies": valid,
-        "winner": winner["company_name"],
-        "winner_score": winner["private_score"],
-        "analysis": (
-            f"{winner['company_name']} leads this peer set with a PrivateScore of "
-            f"{winner['private_score']}/1000 ({winner['rating']}). Gap vs lowest: "
-            f"{winner['private_score'] - low} points."
-        ),
+        "winner": winner_name,
+        "winner_score": winner_score,
+        "analysis": analysis,
         "disclaimer": "PrivateLens is a research tool and does not provide credit, investment, legal, or lending advice.",
     }

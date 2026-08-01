@@ -1,5 +1,5 @@
 import { CheckCircle2, Gauge } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { verifyEmail } from '../api/auth'
@@ -10,6 +10,7 @@ export default function VerifyEmail() {
   const token = useMemo(() => params.get('token') || '', [params])
   const [error, setError] = useState('')
   const [verified, setVerified] = useState(false)
+  const verificationRequest = useRef(null)
 
   useEffect(() => {
     let mounted = true
@@ -19,7 +20,10 @@ export default function VerifyEmail() {
         return
       }
       try {
-        await verifyEmail({ token })
+        if (!verificationRequest.current) {
+          verificationRequest.current = verifyEmail({ token })
+        }
+        await verificationRequest.current
         if (mounted) setVerified(true)
       } catch (err) {
         if (mounted) setError(err.message || 'Unable to verify email.')
