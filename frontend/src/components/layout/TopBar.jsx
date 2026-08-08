@@ -35,12 +35,12 @@ export default function TopBar() {
   return (
     <header className="topbar">
       <div>
-        <div className="eyebrow">Private market desk</div>
+        <div className="eyebrow">Research desk</div>
         <h1>{title}</h1>
       </div>
       <form className="top-search" onSubmit={submit}>
-        <Search size={16} />
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Company lookup" />
+        <Search size={15} />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Look up a company" aria-label="Look up a company" />
         <button aria-label="Run lookup"><ArrowRight size={15} /></button>
       </form>
       <div className="user-badge">

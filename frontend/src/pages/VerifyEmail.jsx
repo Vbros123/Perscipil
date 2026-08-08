@@ -1,4 +1,4 @@
-import { CheckCircle2, Gauge } from 'lucide-react'
+import { CheckCircle2, ScanSearch } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from '../router'
 
@@ -36,7 +36,7 @@ export default function VerifyEmail() {
   return (
     <main className="auth-page">
       <Link to="/" className="brand auth-brand">
-        <span className="brand-mark"><Gauge size={19} /></span>
+        <span className="brand-mark"><ScanSearch size={17} /></span>
         <span><strong>PrivateLens</strong><small>Email verification</small></span>
       </Link>
       <section className="auth-card">

@@ -9,7 +9,7 @@ import ErrorNotice from '../components/common/ErrorNotice'
 import MetricCard from '../components/common/MetricCard'
 import PageHeader from '../components/common/PageHeader'
 import SearchPanel from '../components/dashboard/SearchPanel'
-import { averageScore, displayRating, displayScore, isRated } from '../lib/score'
+import { averageScore, displayRating, displayScore, isRated, ratingTone } from '../lib/score'
 
 function normalizeHistory(payload) {
   return Array.isArray(payload) ? payload : payload?.history || []
@@ -59,24 +59,23 @@ export default function Dashboard() {
       history.map((item) => (item.normalized_name || item.company_name || '').toLowerCase()),
     ).size
     return [
-      { icon: Building2, label: 'Companies screened', value: uniqueCompanies, detail: 'Unique names in history', tone: 'accent' },
-      { icon: BookmarkCheck, label: 'Saved companies', value: watchlist.length, detail: 'Active watchlist', tone: 'positive' },
+      { icon: Building2, label: 'Companies screened', value: uniqueCompanies, detail: 'Unique names in history' },
+      { icon: BookmarkCheck, label: 'Saved companies', value: watchlist.length, detail: 'Active watchlist' },
       {
         icon: LineChart,
         label: 'Average score',
-        value: average === null ? 'N/A' : average,
+        value: average === null ? '—' : average,
         detail: average === null ? 'No rated companies yet' : `Across ${ratedCount} rated ${ratedCount === 1 ? 'company' : 'companies'}`,
-        tone: 'neutral',
       },
-      { icon: Database, label: 'Signal library', value: signals.length, detail: 'Verified, context, and unavailable inputs', tone: 'warning' },
-      { icon: Clock3, label: 'Last check', value: last?.company_name || '-', detail: displayRating(last, 'No history yet'), tone: 'neutral' },
+      { icon: Database, label: 'Signal library', value: signals.length, detail: 'Verified, context, and unavailable inputs' },
+      { icon: Clock3, label: 'Last check', value: last?.company_name || '—', detail: displayRating(last, 'No history yet') },
     ]
   }, [history, watchlist, signals])
 
   return (
     <div className="page-stack">
-      <PageHeader eyebrow="Overview" title="Financial health workspace">
-        Run company checks, monitor saved names, and keep diligence history tied to your account.
+      <PageHeader eyebrow="Overview" title="Research workspace">
+        Screen a company, review recent diligence, and monitor names you have saved.
       </PageHeader>
       <SearchPanel onSearch={openReport} />
       <ErrorNotice message={error} />
@@ -94,7 +93,7 @@ export default function Dashboard() {
               {history.slice(0, 6).map((item, index) => (
                 <Link key={`${item.company_name}-${item.id || index}`} to={`/reports/${encodeURIComponent(item.company_name)}`}>
                   <span>{item.company_name}</span>
-                  <strong style={{ color: item.color }}>{displayScore(item)}</strong>
+                  <strong className={`tone-${ratingTone(item)}`}>{displayScore(item, '—')}</strong>
                 </Link>
               ))}
             </div>

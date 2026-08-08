@@ -24,6 +24,23 @@ export function displayRating(item, fallback = 'Unrated') {
   return UNRATED_RATINGS.has(item.rating) ? 'Unrated' : item.rating
 }
 
+// Rating -> design-system tone. The API also ships a hex color per band, but
+// those values were tuned for a dark theme and are not readable as text on the
+// light UI, so presentation is owned here.
+const RATING_TONES = {
+  Exceptional: 'strong',
+  Strong: 'strong',
+  Adequate: 'steady',
+  Weak: 'caution',
+  Distressed: 'elevated',
+  Critical: 'critical',
+}
+
+export function ratingTone(item) {
+  if (!isRated(item)) return 'unrated'
+  return RATING_TONES[item.rating] || 'steady'
+}
+
 export function averageScore(items) {
   const scores = (items || [])
     .filter(isRated)

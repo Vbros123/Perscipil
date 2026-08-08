@@ -82,7 +82,7 @@ export default function CompanyReport() {
           </button>
         )}
       >
-        PrivateLens is a research tool and does not provide credit, investment, legal, or lending advice.
+        Evidence-gated financial health rating. Research tool only — not credit, investment, or lending advice.
       </PageHeader>
 
       {loading && <div className="panel loading-panel"><RefreshCw className="spin" size={18} /> Generating company report</div>}

@@ -6,6 +6,7 @@ import { clearHistory, deleteHistoryItem, getHistory } from '../api/companies'
 import EmptyState from '../components/common/EmptyState'
 import ErrorNotice from '../components/common/ErrorNotice'
 import PageHeader from '../components/common/PageHeader'
+import { displayRating, displayScore, ratingTone } from '../lib/score'
 
 function normalize(payload) {
   return Array.isArray(payload) ? payload : payload?.history || []
@@ -61,12 +62,11 @@ export default function History() {
             </thead>
             <tbody>
               {items.map((item, index) => {
-                const unrated = ['Preliminary', 'Validation hold', 'Unrated'].includes(item.rating)
                 return (
                 <tr key={item.id || `${item.company_name}-${index}`}>
                   <td><Link className="table-link" to={`/reports/${encodeURIComponent(item.company_name)}`}>{item.company_name}</Link></td>
-                  <td className="mono" style={{ color: item.color }}>{unrated ? 'N/A' : item.private_score}</td>
-                  <td>{unrated ? 'Unrated' : item.rating}</td>
+                  <td className={`mono tone-${ratingTone(item)}`}>{displayScore(item, '—')}</td>
+                  <td>{displayRating(item)}</td>
                   <td className="muted">{item.query_type || 'score'}</td>
                   <td className="table-actions">
                     {item.id && (

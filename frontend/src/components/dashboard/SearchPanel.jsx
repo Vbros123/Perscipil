@@ -69,6 +69,7 @@ export default function SearchPanel({ onSearch, loading = false, compact = false
       </form>
       {!compact && (
         <div className="quick-set">
+          <span className="quick-set-label">Try:</span>
           {examples.map((example) => (
             <button
               key={example}

@@ -1,4 +1,4 @@
-import { Activity, ExternalLink } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 
 import Badge from '../common/Badge'
 
@@ -22,7 +22,6 @@ export default function SignalCard({ signal }) {
   return (
     <article className="signal-card">
       <div className="signal-head">
-        <div className="signal-icon"><Activity size={17} /></div>
         <div>
           <h3>{signal.signal}</h3>
           <p>{signal.provider || signal.category_label || signal.category}</p>
@@ -31,7 +30,7 @@ export default function SignalCard({ signal }) {
       </div>
       <div className="signal-score">
         <span>{signal.display}</span>
-        <strong>{showScore ? `${score}/100` : status}</strong>
+        <strong>{showScore ? `${score}/100` : ''}</strong>
       </div>
       <div className="progress-track" aria-hidden={!showScore}>
         <div className={`progress-fill fill-${tone}`} style={{ width: showScore ? `${score}%` : '0%' }} />
@@ -39,9 +38,9 @@ export default function SignalCard({ signal }) {
       <p className="signal-copy">{signal.insight}</p>
       {showScore && (
         <div className="signal-provenance">
-          <span>Observed {signal.freshness_days ?? '-'}d ago</span>
+          <span>Observed {signal.freshness_days ?? '—'}d ago</span>
           <span>Entity match {Number.isFinite(confidence) ? `${Math.round(confidence * 100)}%` : 'not reported'}</span>
-          <span>Transform {signal.transform_version || '-'}</span>
+          <span>Transform {signal.transform_version || '—'}</span>
         </div>
       )}
       <footer className="signal-foot">

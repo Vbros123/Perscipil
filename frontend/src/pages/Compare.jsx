@@ -3,9 +3,11 @@ import { useState } from 'react'
 import { Link } from '../router'
 
 import { compareCompanies } from '../api/companies'
+import Badge from '../components/common/Badge'
 import ErrorNotice from '../components/common/ErrorNotice'
 import PageHeader from '../components/common/PageHeader'
-import ScoreDial from '../components/common/ScoreDial'
+import ScoreBand from '../components/common/ScoreBand'
+import { displayRating, isRated, ratingTone } from '../lib/score'
 
 export default function Compare() {
   const [input, setInput] = useState('Cargill, Deloitte, Bechtel')
@@ -49,13 +51,22 @@ export default function Compare() {
             </div>
           )}
           <div className="compare-grid">
-            {result.companies.map((company) => (
-              <Link className="compare-card" key={company.company_name} to={`/reports/${encodeURIComponent(company.company_name)}`}>
-                <ScoreDial score={company.private_score} rating={company.rating} color={company.color} />
-                <h2>{company.company_name}</h2>
-                <p>{company.report?.headline || company.summary}</p>
-              </Link>
-            ))}
+            {result.companies.map((company) => {
+              const tone = ratingTone(company)
+              const isWinner = Boolean(result.winner) && company.company_name === result.winner
+              return (
+                <Link className="compare-card" key={company.company_name} to={`/reports/${encodeURIComponent(company.company_name)}`}>
+                  {isWinner && <Badge tone="positive" className="compare-winner-chip">Highest rated</Badge>}
+                  <div className="compare-score-row">
+                    <strong className={`tone-${tone}`}>{isRated(company) ? company.private_score : '—'}</strong>
+                    <span className={`tone-${tone}`}>{displayRating(company)}</span>
+                  </div>
+                  <ScoreBand score={company.private_score} rated={isRated(company)} />
+                  <h2>{company.company_name}</h2>
+                  <p>{company.report?.headline || company.summary}</p>
+                </Link>
+              )
+            })}
           </div>
         </section>
       )}

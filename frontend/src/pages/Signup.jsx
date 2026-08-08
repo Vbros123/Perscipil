@@ -1,4 +1,4 @@
-import { ArrowRight, Gauge } from 'lucide-react'
+import { ArrowRight, ScanSearch } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from '../router'
 
@@ -45,8 +45,8 @@ export default function Signup() {
   return (
     <main className="auth-page">
       <Link to="/" className="brand auth-brand">
-        <span className="brand-mark"><Gauge size={19} /></span>
-        <span><strong>PrivateLens</strong><small>Private company intelligence</small></span>
+        <span className="brand-mark"><ScanSearch size={17} /></span>
+        <span><strong>PrivateLens</strong><small>Company intelligence</small></span>
       </Link>
       <section className="auth-card wide">
         <div className="eyebrow">Create workspace</div>

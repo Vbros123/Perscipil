@@ -1,4 +1,4 @@
-import { ArrowRight, Gauge } from 'lucide-react'
+import { ArrowRight, ScanSearch } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from '../router'
 
@@ -29,7 +29,7 @@ export default function ForgotPassword() {
   return (
     <main className="auth-page">
       <Link to="/" className="brand auth-brand">
-        <span className="brand-mark"><Gauge size={19} /></span>
+        <span className="brand-mark"><ScanSearch size={17} /></span>
         <span><strong>PrivateLens</strong><small>Account recovery</small></span>
       </Link>
       <section className="auth-card">
