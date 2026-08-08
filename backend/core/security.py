@@ -115,7 +115,16 @@ def get_optional_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: Session = Depends(get_db),
 ) -> User | None:
-    if credentials is None:
+    """Resolve the caller when a usable token is present, otherwise stay anonymous.
+
+    An expired or malformed token must degrade to anonymous rather than fail the
+    request: these endpoints already serve unauthenticated callers, and a missing
+    header and an unusable header should not behave differently.
+    """
+    if credentials is None or not credentials.credentials.strip():
         return None
-    payload = _decode_payload(credentials.credentials)
-    return _user_from_payload(payload, db)
+    try:
+        payload = _decode_payload(credentials.credentials)
+        return _user_from_payload(payload, db)
+    except HTTPException:
+        return None

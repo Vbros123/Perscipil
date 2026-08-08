@@ -47,14 +47,21 @@ def store_company_event(db, user, score_data: dict, query_type: str = "score") -
     if user is None:
         return
 
+    scoring_status = score_data.get("scoring_status")
+    # Persist a number only for a published rating. Storing the model's internal
+    # output for an unrated company would leave a value in the database that any
+    # later query, export, or average would read as a real score.
+    stored_score = score_data.get("private_score") if scoring_status == "rated" else None
+
     db.add(
         CompanySearch(
             user_id=user.id,
             company_name=score_data["company_name"],
             normalized_name=score_data["normalized_name"],
-            private_score=score_data["private_score"],
+            private_score=stored_score,
             rating=score_data["rating"],
             color=score_data["color"],
+            scoring_status=scoring_status,
             query_type=query_type,
         )
     )
@@ -63,10 +70,10 @@ def store_company_event(db, user, score_data: dict, query_type: str = "score") -
             user_id=user.id,
             company_name=score_data["company_name"],
             normalized_name=score_data["normalized_name"],
-            private_score=score_data["private_score"],
+            private_score=stored_score,
             rating=score_data["rating"],
             report_json=score_data.get("report", {}),
-            scoring_status=score_data.get("scoring_status"),
+            scoring_status=scoring_status,
             model_version=score_data.get("meta", {}).get("model_version"),
             input_snapshot_hash=score_data.get("meta", {}).get("input_snapshot_hash"),
             evidence_json=score_data.get("evidence", {}),

@@ -1,9 +1,13 @@
 """PrivateLens scoring engine v4 with explicit evidence and release gates."""
 from __future__ import annotations
 
+import logging
+import math
 from typing import Any
 
 from services.evidence import SIGNAL_SPECS
+
+logger = logging.getLogger("privatelens.scorer")
 
 WEIGHTS = {name: spec["weight"] for name, spec in SIGNAL_SPECS.items()}
 
@@ -28,6 +32,32 @@ MIN_RATING_COVERAGE = 0.70
 MIN_PROVIDER_DIVERSITY = 2
 PRELIMINARY_COLOR = "#64748B"
 
+# Returned in place of a rating when no evidence is scored. It is deliberately
+# not a mid-range number, so a placeholder can never be mistaken for a score if
+# it leaks into a database row, an export, or an API consumer.
+UNRATED_SCORE = None
+
+
+def _finite(value: Any) -> float | None:
+    """Coerce to a finite float, or None if the value is unusable.
+
+    Guards against NaN in particular: `max(0, min(100, nan))` evaluates to 100 in
+    Python, which would silently promote corrupt provider data to a perfect score.
+    """
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _finite_score(value: Any) -> float | None:
+    """Coerce a raw signal score to a finite float clamped to 0-100."""
+    number = _finite(value)
+    return None if number is None else max(0.0, min(100.0, number))
+
 
 def _rating(score: int) -> tuple[str, str, str]:
     for threshold, label, color, summary in RATING_BANDS:
@@ -47,13 +77,27 @@ def compute_score(signals: list[dict[str, Any]], model_release_stage: str = "sha
     freshness_factors: list[float] = []
     configured_weight_total = sum(WEIGHTS.values())
 
+    unusable_signals: list[str] = []
+
     for signal in signals:
         name = signal.get("signal", "")
-        raw = max(0, min(100, float(signal.get("raw_score", 50))))
         weight = WEIGHTS.get(name, 0.0)
         category = signal.get("category", "operational")
         is_simulated = signal.get("is_simulated", True)
         is_scored = bool(weight and not is_simulated and signal.get("is_scored", True))
+
+        raw = _finite_score(signal.get("raw_score"))
+        if raw is None:
+            # Unusable value: exclude it from the score rather than substituting a
+            # neutral or maximum default, which would fabricate evidence.
+            if is_scored:
+                logger.warning("scorer.unusable_raw_score signal=%s value=%r", name, signal.get("raw_score"))
+                unusable_signals.append(name)
+            is_scored = False
+            raw = 0.0
+            usable = False
+        else:
+            usable = True
 
         if is_scored:
             weighted_sum += raw * weight
@@ -61,29 +105,36 @@ def compute_score(signals: list[dict[str, Any]], model_release_stage: str = "sha
             category_scores.setdefault(category, []).append((raw, weight))
             if signal.get("provider_key"):
                 providers.add(signal["provider_key"])
-            match_confidences.append(float(signal.get("entity_match_confidence", 0)))
+            # entity_match_confidence is a 0-1 probability. Bound it here too so an
+            # out-of-contract provider value cannot report >100% evidence confidence.
+            confidence = _finite(signal.get("entity_match_confidence", 0)) or 0.0
+            match_confidences.append(max(0.0, min(1.0, confidence)))
             max_age = SIGNAL_SPECS[name]["max_age_days"]
-            freshness_days = max(0, float(signal.get("freshness_days", max_age)))
-            freshness_factors.append(max(0, 1 - freshness_days / (max_age * 2)))
+            freshness = _finite(signal.get("freshness_days"))
+            freshness_days = max_age if freshness is None else max(0.0, freshness)
+            freshness_factors.append(max(0.0, 1 - freshness_days / (max_age * 2)))
 
         breakdown.append({
             **{key: value for key, value in signal.items() if key not in {"is_scored"}},
             "signal": name,
             "category": category,
             "category_label": CATEGORY_LABELS.get(category, category.title()),
-            "raw_score": round(raw, 1),
+            "raw_score": round(raw, 1) if usable else None,
             "weight": weight,
             "weight_pct": f"{weight * 100:.0f}%" if weight else "Context",
             "effective_weight": weight if is_scored else 0.0,
             "weighted_contribution": round(raw * weight, 2) if is_scored else 0.0,
             "used_in_score": is_scored,
+            "value_usable": usable,
         })
 
         if is_scored and raw < 30 and weight >= 0.15:
             risk_flags.append(f"{name}: verified evidence is in the severe-risk range ({raw:.0f}/100)")
 
-    normalized = weighted_sum / scored_weight if scored_weight else 50
-    private_score = max(0, min(1000, int(round(normalized * 10))))
+    normalized = weighted_sum / scored_weight if scored_weight else None
+    model_output_score = (
+        max(0, min(1000, int(round(normalized * 10)))) if normalized is not None else None
+    )
     coverage = scored_weight / configured_weight_total if configured_weight_total else 0.0
     identity_verified = any(
         item.get("signal") == "Business Identity & Standing" and item.get("used_in_score")
@@ -111,7 +162,12 @@ def compute_score(signals: list[dict[str, Any]], model_release_stage: str = "sha
         summary = "Evidence gates passed, but the model is in shadow mode pending documented out-of-time validation and approval."
     else:
         scoring_status = "rated"
-        rating, color, summary = _rating(private_score)
+        rating, color, summary = _rating(model_output_score)
+
+    # Only a fully gated, approved run publishes a number. Every other status
+    # reports no score at all rather than a neutral placeholder, so a consumer,
+    # export, or database row can never mistake a default for a real rating.
+    private_score = model_output_score if scoring_status == "rated" else UNRATED_SCORE
 
     category_summary: dict[str, dict[str, Any]] = {}
     for category, scores in category_scores.items():
@@ -158,6 +214,8 @@ def compute_score(signals: list[dict[str, Any]], model_release_stage: str = "sha
             "scoring_status": scoring_status,
             "model_release_stage": model_release_stage,
             "model_version": "v4.0",
+            "model_output_score": model_output_score,
+            "unusable_signals": unusable_signals,
             "disclaimer": (
                 f"{scored_count} verified signals cover {coverage:.0%} of model weight across "
                 f"{provider_diversity} licensed provider(s). Unavailable and context-only inputs are excluded."

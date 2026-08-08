@@ -10,11 +10,14 @@ const toneForScore = (score) => {
 }
 
 export default function SignalCard({ signal }) {
-  const score = Math.round(Number(signal?.raw_score || 0))
-  const tone = toneForScore(score)
+  const rawScore = Number(signal?.raw_score)
+  const hasScore = signal?.raw_score !== null && signal?.raw_score !== undefined && Number.isFinite(rawScore)
+  const score = hasScore ? Math.round(rawScore) : null
+  const tone = toneForScore(score ?? 0)
+  const confidence = Number(signal?.entity_match_confidence)
   const status = signal.is_simulated ? 'Unavailable' : (signal.used_in_score ? 'Verified input' : 'Context only')
   const statusTone = signal.is_simulated ? 'warning' : (signal.used_in_score ? 'positive' : 'neutral')
-  const showScore = Boolean(signal.used_in_score)
+  const showScore = Boolean(signal.used_in_score) && hasScore
 
   return (
     <article className="signal-card">
@@ -37,7 +40,7 @@ export default function SignalCard({ signal }) {
       {showScore && (
         <div className="signal-provenance">
           <span>Observed {signal.freshness_days ?? '-'}d ago</span>
-          <span>Entity match {Math.round(Number(signal.entity_match_confidence || 0) * 100)}%</span>
+          <span>Entity match {Number.isFinite(confidence) ? `${Math.round(confidence * 100)}%` : 'not reported'}</span>
           <span>Transform {signal.transform_version || '-'}</span>
         </div>
       )}

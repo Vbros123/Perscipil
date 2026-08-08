@@ -21,8 +21,8 @@ def normalize_company(name: str) -> str:
     return re.sub(r"\s+", " ", name.strip().lower())
 
 
-def risk_level(score: int, scoring_status: str = "rated") -> str:
-    if scoring_status != "rated":
+def risk_level(score: int | None, scoring_status: str = "rated") -> str:
+    if scoring_status != "rated" or score is None:
         return "Unrated"
     if score >= 750:
         return "Low"
@@ -86,7 +86,8 @@ async def score_company(company_name: str, identity: CompanyIdentity | None = No
 
 
 def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
-    score = int(score_data.get("private_score", 0))
+    raw_score = score_data.get("private_score")
+    score = int(raw_score) if raw_score is not None else None
     scoring_status = score_data.get("scoring_status") or score_data.get("meta", {}).get("scoring_status", "rated")
     rating_status = risk_level(score, scoring_status)
     breakdown = score_data.get("breakdown", [])

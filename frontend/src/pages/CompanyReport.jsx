@@ -55,11 +55,10 @@ export default function CompanyReport() {
     setSaving(true)
     setMessage('')
     try {
+      // Score, rating, and status are resolved server-side from the stored
+      // report; the client only supplies its own annotations.
       await addWatchlist({
         company_name: result.company_name,
-        private_score: result.scoring_status === 'rated' ? result.private_score : null,
-        rating: result.scoring_status === 'rated' ? result.rating : 'Unrated',
-        color: result.color,
         notes: result.report?.headline,
         tags: [result.report?.risk_level || result.rating],
       })

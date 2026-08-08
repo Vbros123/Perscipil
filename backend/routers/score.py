@@ -2,6 +2,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -16,6 +17,22 @@ from services.reports import score_company
 
 router = APIRouter(prefix="/api", tags=["Score"])
 logger = logging.getLogger("privatelens.score")
+
+
+def _identity_or_422(**fields) -> CompanyIdentity:
+    """Build the identity, reporting bad input as 422 rather than a server error.
+
+    These identities are assembled from query parameters, so Pydantic failures
+    are not caught by FastAPI's request-model validation.
+    """
+    try:
+        return CompanyIdentity(**fields)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=[{"loc": list(error["loc"]), "msg": error["msg"], "type": error["type"]}
+                    for error in exc.errors()],
+        ) from exc
 
 
 async def _check_rate_limit(request: Request) -> None:
@@ -60,7 +77,7 @@ async def get_score(
     db: Session = Depends(get_db),
 ):
     """Backward-compatible company check with optional entity identifiers."""
-    identity = CompanyIdentity(
+    identity = _identity_or_422(
         legal_name=company,
         country_code=country_code,
         registration_number=registration_number,
@@ -77,7 +94,7 @@ async def post_score(
     db: Session = Depends(get_db),
 ):
     """Company check using the richer legal-entity identity contract."""
-    identity = CompanyIdentity.model_validate(payload.model_dump())
+    identity = _identity_or_422(**payload.model_dump())
     return await _run_score(request, identity, current_user, db)
 
 

@@ -1,6 +1,7 @@
 import { CheckCircle2, CircleX, DatabaseZap, Fingerprint } from 'lucide-react'
 
 import Badge from '../common/Badge'
+import { displayRating } from '../../lib/score'
 
 const gateLabels = {
   coverage: '70% model coverage',
@@ -21,7 +22,7 @@ export default function EvidencePanel({ result }) {
       <div className="panel-head">
         <div><div className="eyebrow">Evidence controls</div><h2>Rating release gates</h2></div>
         <Badge tone={result.scoring_status === 'rated' ? 'positive' : 'warning'}>
-          {result.scoring_status === 'validation_hold' ? 'Shadow mode' : result.rating}
+          {result.scoring_status === 'validation_hold' ? 'Shadow mode' : displayRating(result)}
         </Badge>
       </div>
       <div className="evidence-layout">

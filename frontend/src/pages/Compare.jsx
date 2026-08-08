@@ -42,6 +42,12 @@ export default function Compare() {
       {result && (
         <section className="page-stack">
           <div className="notice notice-info">{result.analysis}</div>
+          {result.failed?.length > 0 && (
+            <div className="notice notice-warning">
+              {result.failed.length} of {result.requested?.length ?? '?'} companies could not be analysed
+              and are missing from this comparison: {result.failed.join(', ')}.
+            </div>
+          )}
           <div className="compare-grid">
             {result.companies.map((company) => (
               <Link className="compare-card" key={company.company_name} to={`/reports/${encodeURIComponent(company.company_name)}`}>

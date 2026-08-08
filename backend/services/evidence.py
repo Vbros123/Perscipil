@@ -3,11 +3,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import math
 import re
 from datetime import datetime, timezone
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+logger = logging.getLogger("privatelens.evidence")
 
 
 PROVIDER_CATALOG: dict[str, dict[str, Any]] = {
@@ -36,6 +40,22 @@ PROVIDER_CATALOG: dict[str, dict[str, Any]] = {
         "signals": ["Cash Flow & Liquidity"],
     },
 }
+
+
+# ISO 3166-1 alpha-2. A shape check alone would accept non-existent codes such as
+# "ZZ" and record a company against a country that does not exist.
+ISO_3166_1_ALPHA_2 = frozenset("""
+AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM
+BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX
+CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG
+GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR
+IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV
+LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE
+NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO
+RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF
+TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF
+WS YE YT ZA ZM ZW
+""".split())
 
 
 SIGNAL_SPECS: dict[str, dict[str, Any]] = {
@@ -85,14 +105,19 @@ class CompanyIdentity(BaseModel):
     @field_validator("legal_name")
     @classmethod
     def clean_name(cls, value: str) -> str:
-        return re.sub(r"\s+", " ", value.strip())
+        # min_length runs before this validator, so a whitespace-only string such
+        # as "   " would otherwise pass the length check and collapse to "".
+        cleaned = re.sub(r"\s+", " ", value.strip())
+        if len(cleaned) < 2:
+            raise ValueError("legal_name must contain at least 2 non-whitespace characters")
+        return cleaned
 
     @field_validator("country_code")
     @classmethod
     def clean_country(cls, value: str) -> str:
         value = value.strip().upper()
-        if not re.fullmatch(r"[A-Z]{2}", value):
-            raise ValueError("country_code must be an ISO-2 country code")
+        if value not in ISO_3166_1_ALPHA_2:
+            raise ValueError("country_code must be a valid ISO 3166-1 alpha-2 country code")
         return value
 
     @field_validator("registration_number", "postal_code", "address")
@@ -181,6 +206,10 @@ class GatewayEvidenceResponse(BaseModel):
 
 
 def _clamp(value: float, low: float = 0, high: float = 100) -> float:
+    # NaN must never survive clamping: `max(low, min(high, nan))` returns `high`
+    # in Python, which would turn corrupt provider data into a perfect score.
+    if value is None or math.isnan(value):
+        raise ValueError("cannot clamp a non-numeric value")
     return max(low, min(high, value))
 
 
@@ -188,9 +217,15 @@ def _number(value: Any) -> float | None:
     if isinstance(value, bool):
         return None
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError):
         return None
+    # Reject NaN and +/-Infinity. Python's json.loads accepts the bare `NaN`,
+    # `Infinity`, and `-Infinity` literals, so a malformed provider payload can
+    # otherwise inject them straight into the transforms.
+    if not math.isfinite(number):
+        return None
+    return number
 
 
 def _normalized(observation: Observation) -> float | None:
@@ -199,10 +234,14 @@ def _normalized(observation: Observation) -> float | None:
         return None
     if observation.scale_min is None or observation.scale_max is None:
         return _clamp(value)
-    span = observation.scale_max - observation.scale_min
+    scale_min = _number(observation.scale_min)
+    scale_max = _number(observation.scale_max)
+    if scale_min is None or scale_max is None:
+        return None
+    span = scale_max - scale_min
     if span <= 0:
         return None
-    normalized = (value - observation.scale_min) / span * 100
+    normalized = (value - scale_min) / span * 100
     if observation.higher_is_better is False:
         normalized = 100 - normalized
     return _clamp(normalized)
@@ -488,7 +527,8 @@ def unavailable_signal(name: str) -> dict[str, Any]:
         "icon": "data",
         "category": spec["category"],
         "display": "Verified licensed evidence unavailable - not scored",
-        "raw_score": 50,
+        # No number is invented for a missing provider.
+        "raw_score": None,
         "is_simulated": True,
         "is_scored": False,
         "availability_status": "unavailable",
@@ -521,8 +561,21 @@ def build_licensed_signals(
                 rejected.append({"provider": provider_key, "reason": "entity_match_request_mismatch"})
                 continue
             produced: list[str] = []
+            transform_errors = 0
             for transform in TRANSFORMS[provider_key]:
-                signal = transform(bundle, now)
+                try:
+                    signal = transform(bundle, now)
+                except Exception:
+                    # A single unusable observation must drop that one signal, not
+                    # fail the whole report and not fall back to an invented value.
+                    logger.warning(
+                        "evidence.transform_failed provider=%s transform=%s",
+                        provider_key,
+                        transform.__name__,
+                        exc_info=True,
+                    )
+                    transform_errors += 1
+                    continue
                 if signal is not None:
                     signals[signal["signal"]] = signal
                     produced.append(signal["signal"])
@@ -535,6 +588,7 @@ def build_licensed_signals(
                 "matched_fields": bundle.entity_match.matched_fields,
                 "license_reference": bundle.provider.license_reference,
                 "signals": produced,
+                "transform_errors": transform_errors,
                 "evidence_ids": [item.evidence_id for item in bundle.observations],
                 "observations": [
                     {

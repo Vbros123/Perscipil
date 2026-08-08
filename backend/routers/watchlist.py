@@ -4,12 +4,37 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.security import get_current_user
-from models.company import SavedCompany
+from models.company import CompanyReport, SavedCompany
 from models.user import User
 from schemas.company import WatchlistCreate, WatchlistOut, WatchlistUpdate
 from services.reports import normalize_company
 
 router = APIRouter(prefix="/api/watchlist", tags=["Watchlist"])
+
+UNRATED = {"private_score": None, "rating": "Unrated", "color": None, "scoring_status": None}
+
+
+def latest_verdict(db: Session, user_id: int, normalized_name: str) -> dict:
+    """Resolve the saved score from this user's most recent report for the company.
+
+    The client never supplies the score: without a prior report there is nothing
+    to save, and an unrated report saves no number.
+    """
+    report = (
+        db.query(CompanyReport)
+        .filter(CompanyReport.user_id == user_id, CompanyReport.normalized_name == normalized_name)
+        .order_by(CompanyReport.created_at.desc())
+        .first()
+    )
+    if report is None:
+        return dict(UNRATED)
+    rated = report.scoring_status == "rated"
+    return {
+        "private_score": report.private_score if rated else None,
+        "rating": report.rating or "Unrated",
+        "color": (report.report_json or {}).get("color") if isinstance(report.report_json, dict) else None,
+        "scoring_status": report.scoring_status,
+    }
 
 
 @router.get("", response_model=list[WatchlistOut])
@@ -34,6 +59,8 @@ def add_watchlist_item(
     db: Session = Depends(get_db),
 ):
     normalized = normalize_company(payload.company_name)
+    verdict = latest_verdict(db, current_user.id, normalized)
+
     existing = (
         db.query(SavedCompany)
         .filter(
@@ -46,6 +73,8 @@ def add_watchlist_item(
         for field, value in payload.model_dump(exclude_unset=True).items():
             if field != "company_name":
                 setattr(existing, field, value)
+        for field, value in verdict.items():
+            setattr(existing, field, value)
         db.add(existing)
         db.commit()
         db.refresh(existing)
@@ -55,11 +84,9 @@ def add_watchlist_item(
         user_id=current_user.id,
         company_name=payload.company_name.strip(),
         normalized_name=normalized,
-        private_score=payload.private_score,
-        rating=payload.rating,
-        color=payload.color,
         notes=payload.notes,
         tags=payload.tags,
+        **verdict,
     )
     db.add(item)
     db.commit()

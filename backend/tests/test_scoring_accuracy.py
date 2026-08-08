@@ -223,7 +223,12 @@ def test_context_and_unavailable_values_do_not_change_score_or_flags():
     ]
     result = compute_score(signals, model_release_stage="validated")
 
-    assert result["private_score"] == 500
+    # No evidence is scored, so no number is published at all. A neutral
+    # placeholder here would be indistinguishable from a real mid-range score
+    # once it reached a database row, an export, or an API consumer.
+    assert result["private_score"] is None
+    assert result["scoring_status"] == "insufficient_data"
+    assert result["meta"]["model_output_score"] is None
     assert result["meta"]["evidence_coverage"] == 0
     assert result["risk_flags"] == []
     assert all(item["used_in_score"] is False for item in result["breakdown"])

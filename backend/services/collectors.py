@@ -8,6 +8,7 @@ import asyncio
 import math
 import re
 from datetime import datetime, timedelta
+from urllib.parse import quote
 from core.config import get_settings
 from services.evidence import CompanyIdentity
 from services.licensed_data import collect_licensed_signals
@@ -15,6 +16,14 @@ from services.licensed_data import collect_licensed_signals
 settings = get_settings()
 
 HEADERS = {"User-Agent": "PrivateLens/2.0 research@privatelens.io"}
+
+# USASpending returns awards page by page. Anything derived from one page is a
+# floor across the largest awards, not a lifetime total.
+AWARD_PAGE_SIZE = 10
+AWARD_SEARCH_START = "2022-01-01"
+# Indeed's public result counter is capped before display; the cap must be shown
+# as a lower bound rather than an exact posting count.
+JOB_COUNT_CAP = 5000
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -39,19 +48,31 @@ async def collect_sec_edgar(name: str) -> dict:
             resp = await client.get(url, headers=HEADERS)
             if resp.status_code == 200:
                 data = resp.json()
-                hits = data.get("hits", {}).get("total", {}).get("value", 0)
+                total = data.get("hits", {}).get("total", {}) or {}
+                hits = total.get("value", 0)
+                # SEC full-text search caps the counter and reports relation "gte";
+                # rendering that as an exact figure would overstate precision.
+                capped = total.get("relation") == "gte"
+                hit_label = f"{hits:,}+" if capped else f"{hits:,}"
                 return {
                     "signal": "SEC / Regulatory Filings",
                     "icon": "📋",
                     "category": "legal",
-                    "display": f"{hits:,} unverified keyword match(es) in the past 2 years",
-                    "raw_score": 50,
+                    "display": f"{hit_label} unverified keyword match(es) in the past 2 years",
+                    "raw_score": None,
                     "is_simulated": False,
                     "is_scored": False,
-                    "source_url": f"https://efts.sec.gov/LATEST/search-index?q=%22{name.replace(' ', '+')}%22",
+                    # Link the same query and date window the count came from, so
+                    # the displayed figure is reproducible by the reader.
+                    "source_url": (
+                        f"https://www.sec.gov/edgar/search/#/q=%22{quote(name)}%22"
+                        f"&dateRange=custom&startdt={start}&enddt={end}"
+                    ),
                     "insight": (
-                        "SEC full-text results are shown as research context only. Keyword matches can refer to customers, "
-                        "competitors, exhibits, or similarly named entities, so filing volume is not used as a risk signal."
+                        f"SEC full-text search returned {hit_label} keyword match(es) between {start} and {end}, "
+                        "shown as research context only. Keyword matches can refer to customers, competitors, "
+                        "exhibits, or similarly named entities, so filing volume is not used as a risk signal."
+                        + (" SEC caps this counter, so the true total is higher." if capped else "")
                     ),
                 }
     except Exception:
@@ -59,52 +80,125 @@ async def collect_sec_edgar(name: str) -> dict:
     return _unavailable_signal("SEC / Regulatory Filings", "📋", "legal", "https://efts.sec.gov")
 
 
+ORGANISATION_HINTS = (
+    "company", "corporation", "conglomerate", "business", "enterprise", "firm",
+    "manufacturer", "retailer", "bank", "insurer", "airline", "startup",
+    "subsidiary", "holding", "group", "brand", "organisation", "organization",
+    "supplier", "operator", "provider", "chain", "publisher", "studio",
+)
+
+
+def _no_wikipedia_match(name: str, reason: str) -> dict:
+    return {
+        "signal": "Brand Legitimacy & Web Presence",
+        "icon": "🌐",
+        "category": "digital",
+        "display": "No confident Wikipedia company match",
+        "raw_score": None,
+        "is_simulated": True,
+        "is_scored": False,
+        "availability_status": "unavailable",
+        "source_url": "https://en.wikipedia.org/wiki/Special:Search?search=" + name.replace(" ", "+"),
+        "insight": (
+            f"No Wikipedia article was confidently resolved to this company ({reason}). "
+            "Absence of an article is not evidence about the company, so no value was inferred."
+        ),
+    }
+
+
+def _looks_like_organisation(summary: dict) -> bool:
+    description = (summary.get("description") or "").lower()
+    extract = (summary.get("extract") or "").lower()
+    if any(hint in description for hint in ORGANISATION_HINTS):
+        return True
+    # Fall back to the opening clause of the article, which for organisations
+    # almost always states the entity type ("... is an American ... company").
+    return any(hint in extract[:400] for hint in ORGANISATION_HINTS)
+
+
+async def _wikipedia_summary(client: httpx.AsyncClient, title: str) -> dict | None:
+    resp = await client.get(
+        f"https://en.wikipedia.org/api/rest_v1/page/summary/{title.replace(' ', '_')}",
+        headers=HEADERS,
+    )
+    if resp.status_code != 200:
+        return None
+    return resp.json()
+
+
 async def collect_wikipedia(name: str) -> dict:
-    """Wikipedia API — brand legitimacy, establishment, public profile (real)."""
+    """Resolve the company's Wikipedia article and report it as identity context.
+
+    The article title is not assumed to equal the company name: a bare name like
+    "Stripe" or "Apple" resolves to a disambiguation page or an unrelated topic,
+    so candidates are verified to refer to the requested organisation before use.
+    """
+    requested = _normalize_entity_name(name)
+    if not requested:
+        return _no_wikipedia_match(name, "no searchable company name was provided")
     try:
-        slug = name.replace(" ", "_")
         async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
-            resp = await client.get(
-                f"https://en.wikipedia.org/api/rest_v1/page/summary/{slug}",
-                headers=HEADERS
+            search = await client.get(
+                "https://en.wikipedia.org/w/api.php",
+                params={
+                    "action": "query", "list": "search", "srsearch": f"{name} company",
+                    "srlimit": 5, "format": "json",
+                },
+                headers=HEADERS,
             )
-            if resp.status_code == 200:
-                data = resp.json()
-                extract = data.get("extract", "")
+            candidates: list[str] = [name]
+            if search.status_code == 200:
+                for hit in search.json().get("query", {}).get("search", []):
+                    title = hit.get("title")
+                    if title and title not in candidates:
+                        candidates.append(title)
+
+            for title in candidates:
+                summary = await _wikipedia_summary(client, title)
+                if not summary:
+                    continue
+                # A disambiguation page describes a word, not a company.
+                if summary.get("type") == "disambiguation":
+                    continue
+                resolved_title = summary.get("title") or title
+                resolved = _normalize_entity_name(resolved_title)
+                # Require the article to be about the requested entity, allowing
+                # only a legal-suffix difference ("Stripe" -> "Stripe, Inc.") or a
+                # trailing qualifier ("Koch" -> "Koch Industries").
+                if not (resolved == requested
+                        or resolved.startswith(requested + " ")
+                        or requested.startswith(resolved + " ")):
+                    continue
+                if not _looks_like_organisation(summary):
+                    continue
+
+                extract = summary.get("extract", "")
                 words = len(extract.split())
-                # Also extract founding year hint if present
-                founded_match = re.search(r'founded in (\d{4})', extract.lower())
-                age_bonus = 0
+                founded_match = re.search(r"(?:founded|established|incorporated)(?:\s+\w+){0,2}\s+in\s+(\d{4})",
+                                          extract.lower())
                 age_note = ""
                 if founded_match:
-                    age = datetime.now().year - int(founded_match.group(1))
-                    age_bonus = min(15, age // 3)
-                    age_note = f" Founded {founded_match.group(1)} ({age} years ago)."
-
-                score = _clamp(45 + words // 8 + age_bonus) if words > 0 else 28
+                    year = int(founded_match.group(1))
+                    if 1600 <= year <= datetime.now().year:
+                        age_note = f" Founded {year} ({datetime.now().year - year} years ago)."
                 return {
                     "signal": "Brand Legitimacy & Web Presence",
                     "icon": "🌐",
                     "category": "digital",
-                    "display": f"Wikipedia page found ({words} words){age_note}",
-                    "raw_score": score,
+                    "display": f"Wikipedia article: {resolved_title}{age_note}",
+                    "raw_score": None,
                     "is_simulated": False,
                     "is_scored": False,
-                    "source_url": f"https://en.wikipedia.org/wiki/{slug}",
-                    "insight": f"Established public profile with a {words}-word Wikipedia article.{age_note} Shown as identity and web-presence context only.",
+                    "source_url": f"https://en.wikipedia.org/wiki/{resolved_title.replace(' ', '_')}",
+                    "matched_entity": resolved_title,
+                    "insight": (
+                        f"Matched the Wikipedia article \"{resolved_title}\""
+                        f"{' — ' + summary['description'] if summary.get('description') else ''}."
+                        f"{age_note} Article length ({words} words) reflects editorial coverage, not company "
+                        "performance, so this is identity context only and is excluded from the score."
+                    ),
                 }
-            else:
-                return {
-                    "signal": "Brand Legitimacy & Web Presence",
-                    "icon": "🌐",
-                    "category": "digital",
-                    "display": "No Wikipedia presence found",
-                    "raw_score": 30,
-                    "is_simulated": False,
-                    "is_scored": False,
-                    "source_url": f"https://en.wikipedia.org/wiki/{slug}",
-                    "insight": "No Wikipedia page detected. May indicate a smaller, newer, or deliberately low-profile company.",
-                }
+            return _no_wikipedia_match(name, "no candidate article resolved to this organisation")
     except Exception:
         pass
     return _unavailable_signal("Brand Legitimacy & Web Presence", "🌐", "digital", "https://en.wikipedia.org")
@@ -148,16 +242,12 @@ async def collect_news_sentiment(name: str) -> dict:
         total_signals = pos + neg
 
         if total_signals == 0:
-            score = 58
             label = "Neutral / No signal"
         elif pos > neg * 1.5:
-            score = _clamp(68 + pos * 4)
             label = "Positive"
         elif neg > pos * 1.5:
-            score = _clamp(52 - neg * 6)
             label = "Negative"
         else:
-            score = 55
             label = "Mixed"
 
         return {
@@ -165,7 +255,8 @@ async def collect_news_sentiment(name: str) -> dict:
             "icon": "📰",
             "category": "sentiment",
             "display": f"{label} — {pos} positive, {neg} negative signals, {hn_hits} HN mentions",
-            "raw_score": score,
+            # Keyword counts are not entity-resolved, so no numeric value is published.
+            "raw_score": None,
             "is_simulated": False,
             "is_scored": False,
             "source_url": f"https://hn.algolia.com/api/v1/search?query={name.replace(' ', '%20')}&tags=story",
@@ -195,10 +286,18 @@ async def collect_job_postings(name: str) -> dict:
             text = resp.text
             # Parse job count from page
             count_match = re.search(r'(\d[\d,]*)\s+jobs?', text, re.IGNORECASE)
-            raw_count = int(count_match.group(1).replace(",", "")) if count_match else 0
-            raw_count = min(raw_count, 5000)  # cap outliers
+            if count_match is None:
+                # No parsable counter: the page layout changed or the request was
+                # blocked. Reporting "0 postings" here would invent an observation.
+                return _unavailable_signal(
+                    "Job Posting Velocity", "💼", "operational",
+                    f"https://www.indeed.com/jobs?q=%22{quote(name)}%22",
+                )
+            parsed_count = int(count_match.group(1).replace(",", ""))
+            raw_count = min(parsed_count, JOB_COUNT_CAP)
+            capped = parsed_count > JOB_COUNT_CAP
+            count_label = f"{raw_count:,}+" if capped else f"{raw_count:,}"
 
-            score = _clamp(35 + math.log10(raw_count + 1) * 20)
             if raw_count > 200:
                 trend = "Very active hiring"
             elif raw_count > 50:
@@ -212,12 +311,16 @@ async def collect_job_postings(name: str) -> dict:
                 "signal": "Job Posting Velocity",
                 "icon": "💼",
                 "category": "operational",
-                "display": f"{raw_count:,} active job posting(s) — {trend}",
-                "raw_score": score,
+                "display": f"{count_label} active job posting(s) — {trend}",
+                "raw_score": None,
                 "is_simulated": False,
                 "is_scored": False,
-                "source_url": f"https://www.indeed.com/jobs?q=%22{name.replace(' ', '+')}%22",
-                "insight": f"{trend} ({raw_count:,} postings). Public job-search results are not entity-resolved enough to affect the financial-health score.",
+                "source_url": f"https://www.indeed.com/jobs?q=%22{quote(name)}%22",
+                "insight": (
+                    f"{trend} ({count_label} postings reported by Indeed's public result counter). "
+                    "Keyword search is not entity-resolved, so postings may belong to other employers "
+                    "and this signal does not affect the financial-health score."
+                ),
             }
     except Exception:
         pass
@@ -234,11 +337,11 @@ async def collect_usa_spending(name: str) -> dict:
                     "filters": {
                         "recipient_search_text": [name],
                         "award_type_codes": ["A", "B", "C", "D"],
-                        "time_period": [{"start_date": "2022-01-01", "end_date": datetime.now().strftime("%Y-%m-%d")}]
+                        "time_period": [{"start_date": AWARD_SEARCH_START, "end_date": datetime.now().strftime("%Y-%m-%d")}]
                     },
                     "fields": ["Award Amount", "Recipient Name"],
                     "page": 1,
-                    "limit": 10,
+                    "limit": AWARD_PAGE_SIZE,
                     "sort": "Award Amount",
                     "order": "desc"
                 },
@@ -256,25 +359,35 @@ async def collect_usa_spending(name: str) -> dict:
                 total = sum(r.get("Award Amount", 0) or 0 for r in verified_results)
                 count = len(verified_results)
                 unverified_count = len(results) - count
-                score = _clamp(55 + min(count * 4, 30) + min(math.log10(total + 1) * 2, 15)) if count > 0 else 50
+                # This request returns only the largest AWARD_PAGE_SIZE awards. The
+                # sum is therefore a floor across those awards, never a lifetime
+                # total, and must not be presented as one.
+                truncated = bool(data.get("page_metadata", {}).get("hasNext"))
 
                 return {
                     "signal": "Government Contract Awards",
                     "icon": "🏛️",
                     "category": "financial",
                     "display": (
-                        f"{count} exact-name contract(s) — ${total:,.0f} total value"
+                        f"{count} of the {AWARD_PAGE_SIZE} largest awards match this exact name — "
+                        f"${total:,.0f} across those awards"
                         if count > 0 else
-                        f"No exact-name contracts; {unverified_count} broader match(es) excluded"
+                        f"No exact-name match in the {AWARD_PAGE_SIZE} largest awards; "
+                        f"{unverified_count} broader match(es) excluded"
                     ),
-                    "raw_score": score,
+                    "raw_score": None,
                     "is_simulated": False,
                     "is_scored": False,
                     "source_url": f"https://www.usaspending.gov/search/?query={name.replace(' ', '%20')}",
                     "insight": (
-                        f"Found {count} exact-name federal contract(s) totaling ${total:,.0f}. Shown as revenue-context evidence only."
+                        f"USASpending.gov was queried for the {AWARD_PAGE_SIZE} largest awards since "
+                        f"{AWARD_SEARCH_START}; {count} of them match this exact recipient name and total "
+                        f"${total:,.0f}. This is a floor across those awards, not the company's total federal "
+                        f"contract value{', and more awards exist beyond this page' if truncated else ''}. "
+                        "Shown as revenue context only."
                         if count > 0 else
-                        "Broader recipient-name matches are shown as context only and excluded from scoring."
+                        "No award in this page matched the exact recipient name. Broader recipient-name matches "
+                        "are shown as context only and excluded from scoring."
                     ),
                 }
     except Exception:
@@ -290,8 +403,12 @@ def _unavailable_signal(signal: str, icon: str, category: str, source_url: str) 
         "icon": icon,
         "category": category,
         "display": "Verified data unavailable — not scored",
-        "raw_score": 50,
+        # No value is invented for an unavailable source, so there is no number
+        # a consumer could mistake for an observation.
+        "raw_score": None,
         "is_simulated": True,
+        "is_scored": False,
+        "availability_status": "unavailable",
         "source_url": source_url,
         "insight": (
             "No verified data was available for this signal during the current run. "

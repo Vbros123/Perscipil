@@ -198,7 +198,12 @@ def logout(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # Bump the token version so the presented bearer token stops working.
+    # Without this, logging out only wrote an audit row and a stolen token stayed
+    # valid for the full JWT lifetime.
+    current_user.token_version += 1
     audit(db, "logout", request, user=current_user)
+    db.add(current_user)
     db.commit()
     return {"message": "Logged out."}
 

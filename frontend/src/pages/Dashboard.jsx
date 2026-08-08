@@ -9,6 +9,7 @@ import ErrorNotice from '../components/common/ErrorNotice'
 import MetricCard from '../components/common/MetricCard'
 import PageHeader from '../components/common/PageHeader'
 import SearchPanel from '../components/dashboard/SearchPanel'
+import { averageScore, displayRating, displayScore, isRated } from '../lib/score'
 
 function normalizeHistory(payload) {
   return Array.isArray(payload) ? payload : payload?.history || []
@@ -52,16 +53,23 @@ export default function Dashboard() {
 
   const metrics = useMemo(() => {
     const last = history[0]
-    const ratedHistory = history.filter((item) => !['Preliminary', 'Validation hold', 'Unrated'].includes(item.rating))
-    const avgScore = ratedHistory.length
-      ? Math.round(ratedHistory.reduce((sum, item) => sum + Number(item.private_score || 0), 0) / ratedHistory.length)
-      : '-'
+    const average = averageScore(history)
+    const ratedCount = history.filter(isRated).length
+    const uniqueCompanies = new Set(
+      history.map((item) => (item.normalized_name || item.company_name || '').toLowerCase()),
+    ).size
     return [
-      { icon: Building2, label: 'Companies screened', value: history.length, detail: 'Workspace history', tone: 'accent' },
+      { icon: Building2, label: 'Companies screened', value: uniqueCompanies, detail: 'Unique names in history', tone: 'accent' },
       { icon: BookmarkCheck, label: 'Saved companies', value: watchlist.length, detail: 'Active watchlist', tone: 'positive' },
-      { icon: LineChart, label: 'Average score', value: avgScore, detail: 'Recent searches', tone: 'neutral' },
-      { icon: Database, label: 'Signal library', value: signals.length || 10, detail: 'Verified, context, and unavailable inputs', tone: 'warning' },
-      { icon: Clock3, label: 'Last check', value: last?.company_name || '-', detail: last?.rating || 'No history yet', tone: 'neutral' },
+      {
+        icon: LineChart,
+        label: 'Average score',
+        value: average === null ? 'N/A' : average,
+        detail: average === null ? 'No rated companies yet' : `Across ${ratedCount} rated ${ratedCount === 1 ? 'company' : 'companies'}`,
+        tone: 'neutral',
+      },
+      { icon: Database, label: 'Signal library', value: signals.length, detail: 'Verified, context, and unavailable inputs', tone: 'warning' },
+      { icon: Clock3, label: 'Last check', value: last?.company_name || '-', detail: displayRating(last, 'No history yet'), tone: 'neutral' },
     ]
   }, [history, watchlist, signals])
 
@@ -86,7 +94,7 @@ export default function Dashboard() {
               {history.slice(0, 6).map((item, index) => (
                 <Link key={`${item.company_name}-${item.id || index}`} to={`/reports/${encodeURIComponent(item.company_name)}`}>
                   <span>{item.company_name}</span>
-                  <strong style={{ color: item.color }}>{['Preliminary', 'Validation hold', 'Unrated'].includes(item.rating) ? 'N/A' : item.private_score}</strong>
+                  <strong style={{ color: item.color }}>{displayScore(item)}</strong>
                 </Link>
               ))}
             </div>
@@ -104,7 +112,7 @@ export default function Dashboard() {
               {watchlist.slice(0, 6).map((item) => (
                 <Link key={item.id} to={`/reports/${encodeURIComponent(item.company_name)}`}>
                   <span>{item.company_name}</span>
-                  <strong>{item.rating || '-'}</strong>
+                  <strong>{displayRating(item, '-')}</strong>
                 </Link>
               ))}
             </div>

@@ -6,12 +6,23 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class WatchlistCreate(BaseModel):
+    """Only the company and the user's own annotations are client-supplied.
+
+    Score, rating, colour, and scoring status are resolved server-side from the
+    stored report so a crafted request cannot save a fabricated rating.
+    """
+
     company_name: str = Field(min_length=2, max_length=180)
-    private_score: int | None = Field(default=None, ge=0, le=1000)
-    rating: str | None = Field(default=None, max_length=60)
-    color: str | None = Field(default=None, max_length=20)
     notes: str | None = Field(default=None, max_length=2000)
     tags: list[str] | None = None
+
+    @field_validator("company_name")
+    @classmethod
+    def non_blank_name(cls, value: str) -> str:
+        cleaned = " ".join(value.split())
+        if len(cleaned) < 2:
+            raise ValueError("company_name must contain at least 2 non-whitespace characters")
+        return cleaned
 
 
 class WatchlistUpdate(BaseModel):
@@ -28,6 +39,7 @@ class WatchlistOut(BaseModel):
     private_score: int | None
     rating: str | None
     color: str | None
+    scoring_status: str | None = None
     notes: str | None
     tags: list[str] | None
     created_at: datetime
@@ -40,9 +52,10 @@ class HistoryOut(BaseModel):
     id: int | None = None
     company_name: str
     normalized_name: str | None = None
-    private_score: int
+    private_score: int | None = None
     rating: str
     color: str
+    scoring_status: str | None = None
     query_type: str | None = None
     created_at: datetime | None = None
     queried_at: str | None = None
@@ -54,7 +67,7 @@ class CompanyReportOut(BaseModel):
     id: int | None = None
     company_name: str
     normalized_name: str
-    private_score: int
+    private_score: int | None = None
     rating: str
     report: dict[str, Any]
     created_at: datetime | None = None
