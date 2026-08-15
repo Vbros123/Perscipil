@@ -11,22 +11,56 @@ import CompanySummary from '../components/company/CompanySummary'
 import EvidencePanel from '../components/company/EvidencePanel'
 import SignalCard from '../components/company/SignalCard'
 
-const LOADING_STAGES = ['Resolving company', 'Collecting evidence', 'Scoring signals', 'Generating report']
+const SCOREABLE = new Set(['company', 'parent_company', 'subsidiary', 'brand'])
+
+function loadingStages(name) {
+  const label = name || 'company'
+  return [
+    `Resolving ${label}…`,
+    `Analyzing ${label}…`,
+    'Building PrivateScore…',
+  ]
+}
+
+function entityLabel(type) {
+  const labels = {
+    company: 'Company',
+    parent_company: 'Parent company',
+    subsidiary: 'Subsidiary',
+    brand: 'Brand',
+    family: 'Family / historical entity',
+    person: 'Person',
+    organization: 'Organization',
+    nonprofit: 'Nonprofit',
+    government: 'Government',
+    unknown: 'Unknown',
+  }
+  return labels[type] || type || 'Unknown'
+}
+
+function confidenceLabel(value) {
+  const score = Number(value || 0)
+  if (score >= 75) return 'High confidence'
+  if (score >= 40) return 'Medium confidence'
+  return 'Low relevance'
+}
 
 export default function CompanyReport() {
   const { company } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const companyName = decodeURIComponent(company || '')
+  const selectedTitle = searchParams.get('selected') || ''
   const identity = {
     country_code: searchParams.get('country_code') || 'US',
     registration_number: searchParams.get('registration_number') || '',
     postal_code: searchParams.get('postal_code') || '',
   }
-  const requestKey = [companyName, identity.country_code, identity.registration_number, identity.postal_code].join('|')
+  const requestKey = [companyName, identity.country_code, identity.registration_number, identity.postal_code, selectedTitle].join('|')
+  const stages = loadingStages(companyName)
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [stage, setStage] = useState(LOADING_STAGES[0])
+  const [stage, setStage] = useState(stages[0])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -35,24 +69,26 @@ export default function CompanyReport() {
   useEffect(() => {
     if (!loading) return undefined
     let index = 0
-    setStage(LOADING_STAGES[0])
+    setStage(stages[0])
     const timer = setInterval(() => {
-      index = Math.min(index + 1, LOADING_STAGES.length - 1)
-      setStage(LOADING_STAGES[index])
+      index = Math.min(index + 1, stages.length - 1)
+      setStage(stages[index])
     }, 900)
     return () => clearInterval(timer)
-  }, [loading])
+  }, [loading, companyName])
 
   useEffect(() => {
     let mounted = true
-    async function load(refresh = false) {
+    async function load() {
       setLoading(true)
       setError('')
       setMessage('')
       try {
-        const key = refresh ? `${requestKey}|refresh` : requestKey
-        if (reportRequest.current.company !== key) {
-          reportRequest.current = { company: key, promise: getScore(companyName, identity, refresh) }
+        if (reportRequest.current.company !== requestKey) {
+          reportRequest.current = {
+            company: requestKey,
+            promise: getScore(companyName, identity, false, selectedTitle),
+          }
         }
         const data = await reportRequest.current.promise
         if (mounted) setResult(data)
@@ -64,7 +100,7 @@ export default function CompanyReport() {
     }
     if (companyName) load()
     return () => { mounted = false }
-  }, [companyName, identity.country_code, identity.registration_number, identity.postal_code])
+  }, [companyName, identity.country_code, identity.registration_number, identity.postal_code, selectedTitle])
 
   const save = async () => {
     if (!result) return
@@ -84,21 +120,39 @@ export default function CompanyReport() {
     }
   }
 
-  const chooseCandidate = (candidate) => {
+  const chooseCandidate = async (candidate) => {
+    const title = candidate.name || candidate.canonicalName
     const params = new URLSearchParams()
     params.set('country_code', identity.country_code || 'US')
     if (identity.registration_number) params.set('registration_number', identity.registration_number)
     if (identity.postal_code) params.set('postal_code', identity.postal_code)
-    navigate(`/reports/${encodeURIComponent(candidate.name || candidate.canonicalName)}?${params.toString()}`)
+    params.set('selected', title)
+    setLoading(true)
+    setError('')
+    try {
+      const data = await getScore(companyName, identity, true, title)
+      setResult(data)
+      reportRequest.current = { company: `${requestKey.split('|').slice(0, 4).join('|')}|${title}`, promise: Promise.resolve(data) }
+      navigate(`/reports/${encodeURIComponent(companyName)}?${params.toString()}`, { replace: true })
+    } catch (err) {
+      setError(err.message || 'Unable to generate report.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const warnings = result?.meta?.warnings || []
+  const rankedCandidates = [...(result?.candidates || [])].sort((left, right) => {
+    const leftScore = SCOREABLE.has(left.entityType) ? 1000 : 0
+    const rightScore = SCOREABLE.has(right.entityType) ? 1000 : 0
+    return (rightScore + Number(right.confidence || 0)) - (leftScore + Number(left.confidence || 0))
+  })
 
   return (
     <div className="page-stack">
       <PageHeader
         eyebrow="Company report"
-        title={companyName}
+        title={result?.company_name || companyName}
         actions={(
           <div className="report-actions">
             <button
@@ -106,7 +160,7 @@ export default function CompanyReport() {
               onClick={() => {
                 reportRequest.current = { company: '', promise: null }
                 setLoading(true)
-                getScore(companyName, identity, true)
+                getScore(companyName, identity, true, selectedTitle)
                   .then(setResult)
                   .catch((err) => setError(err.message || 'Unable to refresh report.'))
                   .finally(() => setLoading(false))
@@ -116,7 +170,7 @@ export default function CompanyReport() {
               <RefreshCw size={16} />
               Refresh
             </button>
-            <button className="btn btn-primary" onClick={save} disabled={!result || saving}>
+            <button className="btn btn-primary" onClick={save} disabled={!result || saving || result.scoring_status === 'needs_disambiguation'}>
               <BookmarkPlus size={16} />
               {saving ? 'Saving' : 'Save'}
             </button>
@@ -132,7 +186,7 @@ export default function CompanyReport() {
           <div>
             <strong>{stage}</strong>
             <div className="loading-stages">
-              {LOADING_STAGES.map((item) => (
+              {stages.map((item) => (
                 <span key={item} className={item === stage ? 'is-active' : ''}>{item}</span>
               ))}
             </div>
@@ -148,20 +202,26 @@ export default function CompanyReport() {
       {result?.scoring_status === 'needs_disambiguation' && !loading && (
         <section className="panel">
           <div className="panel-head">
-            <div><div className="eyebrow">Choose a company</div><h2>Several organisations match this name</h2></div>
+            <div><div className="eyebrow">Choose a company</div><h2>More than one company matches this name</h2></div>
           </div>
           <div className="candidate-grid">
-            {(result.candidates || []).map((candidate) => (
-              <button
-                key={candidate.url || candidate.name}
-                type="button"
-                className="candidate-card"
-                onClick={() => chooseCandidate(candidate)}
-              >
-                <strong>{candidate.name || candidate.canonicalName}</strong>
-                <span>{candidate.description || candidate.companyType || 'Organisation'}</span>
-              </button>
-            ))}
+            {rankedCandidates.map((candidate) => {
+              const scoreable = SCOREABLE.has(candidate.entityType)
+              return (
+                <button
+                  key={candidate.url || candidate.name}
+                  type="button"
+                  className={`candidate-card ${scoreable ? 'is-preferred' : 'is-low-relevance'}`}
+                  onClick={() => chooseCandidate(candidate)}
+                >
+                  <strong>{candidate.name || candidate.canonicalName}</strong>
+                  <span>{entityLabel(candidate.entityType)}</span>
+                  <span>{candidate.description || candidate.industry || 'No description'}</span>
+                  {candidate.domain && <span>{candidate.domain}</span>}
+                  <span>{confidenceLabel(candidate.confidence)}</span>
+                </button>
+              )
+            })}
           </div>
         </section>
       )}

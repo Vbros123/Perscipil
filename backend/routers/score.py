@@ -52,10 +52,16 @@ async def _run_score(
     current_user: User | None,
     db: Session,
     refresh: bool = False,
+    selected_title: str | None = None,
 ):
     await _check_rate_limit(request)
     try:
-        response = await score_company(identity.legal_name, identity=identity, refresh=refresh)
+        response = await score_company(
+            identity.legal_name,
+            identity=identity,
+            refresh=refresh,
+            selected_title=selected_title,
+        )
     except Exception:
         logger.exception("score.pipeline_failed company=%s", identity.legal_name)
         raise HTTPException(status_code=500, detail="The evidence pipeline could not complete this request.")
@@ -75,6 +81,7 @@ async def get_score(
     registration_number: str | None = Query(default=None, max_length=80),
     postal_code: str | None = Query(default=None, max_length=24),
     refresh: bool = Query(default=False),
+    selected_title: str | None = Query(default=None, max_length=180),
     current_user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
@@ -85,7 +92,7 @@ async def get_score(
         registration_number=registration_number,
         postal_code=postal_code,
     )
-    return await _run_score(request, identity, current_user, db, refresh=refresh)
+    return await _run_score(request, identity, current_user, db, refresh=refresh, selected_title=selected_title)
 
 
 @router.post("/score")
@@ -96,8 +103,10 @@ async def post_score(
     db: Session = Depends(get_db),
 ):
     """Company check using the richer legal-entity identity contract."""
-    identity = _identity_or_422(**payload.model_dump(exclude={"refresh"}))
-    return await _run_score(request, identity, current_user, db, refresh=payload.refresh)
+    identity = _identity_or_422(**payload.model_dump(exclude={"refresh", "selected_title"}))
+    return await _run_score(
+        request, identity, current_user, db, refresh=payload.refresh, selected_title=payload.selected_title,
+    )
 
 
 @router.get("/cache/stats")

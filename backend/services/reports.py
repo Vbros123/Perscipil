@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -13,6 +14,7 @@ from services.evidence import CompanyIdentity, evidence_hash
 from services.resolver import ResolvedCompany, canonical_key, resolve_company
 from services.scorer import PUBLISHED_SCORE_STATUSES, compute_score
 
+logger = logging.getLogger("privatelens.reports")
 DISCLAIMER = "PrivateLens is a research tool and does not provide credit, investment, legal, or lending advice."
 settings = get_settings()
 
@@ -50,7 +52,7 @@ def _disambiguation_response(
         "scoring_status": "needs_disambiguation",
         "rating": "Unrated",
         "color": "#64748B",
-        "summary": "Several organisations match this name. Choose the intended company to generate a score.",
+        "summary": "Several companies match this name. Choose the intended company to generate a score.",
         "breakdown": [],
         "category_summary": {},
         "risk_flags": [],
@@ -82,11 +84,7 @@ def _disambiguation_response(
             "legal_disclaimer": DISCLAIMER,
         },
         "elapsed_seconds": elapsed,
-        "resolution": {
-            "limited_identification": True,
-            "needs_disambiguation": True,
-            "resolution_confidence": resolved.resolution_confidence,
-        },
+        "resolution": resolved.resolution_payload(),
     }
     response["report"] = build_company_report(response)
     return response
@@ -114,11 +112,13 @@ async def score_company(
     company_name: str,
     identity: CompanyIdentity | None = None,
     refresh: bool = False,
+    selected_title: str | None = None,
 ) -> dict[str, Any]:
     identity = identity or CompanyIdentity(legal_name=company_name)
     company_clean = identity.legal_name
     start = time.perf_counter()
-    cache_key = "score:v5:" + identity.cache_key()
+    selected = (selected_title or "").strip() or None
+    cache_key = "score:v5:" + identity.cache_key() + (f":sel:{canonical_key(selected)}" if selected else "")
 
     if not refresh:
         cached = await score_cache.get(cache_key)
@@ -129,21 +129,35 @@ async def score_company(
             response["report"] = build_company_report(response)
             return response
 
-    resolved = await resolve_company(identity.legal_name)
-    if resolved.needs_disambiguation:
+    resolved = await resolve_company(identity.legal_name, selected_title=selected)
+    if resolved.needs_disambiguation or resolved.resolution_status == "ambiguous":
+        logger.info("[Report] Query=%r status=ambiguous candidates=%s", company_clean, len(resolved.candidates))
         return _disambiguation_response(company_clean, identity, resolved, round(time.perf_counter() - start, 3))
 
     search_identity = identity
     if resolved.legal_name and not resolved.limited_identification:
         search_identity = identity.model_copy(update={"legal_name": resolved.legal_name})
 
+    logger.info("[Collectors] Starting public collectors for %r", search_identity.legal_name)
     collection = await collect_all(search_identity, resolved=resolved)
+    for item in collection.get("collector_results") or []:
+        logger.info("[Collectors] %s: %s", item.source, item.status)
     signals = collection["signals"]
     evidence = collection["evidence"]
+    live_count = sum(1 for item in signals if item.get("availability_status") in {"live", "verified"} and item.get("is_scored"))
+    modelled_count = sum(1 for item in signals if item.get("availability_status") == "modelled" and item.get("is_scored"))
+    logger.info("[Aggregator] Live signals: %s modelled: %s total: %s", live_count, modelled_count, len(signals))
     result = compute_score(
         signals,
         model_release_stage=settings.MODEL_RELEASE_STAGE,
         resolution_confidence=resolved.resolution_confidence,
+    )
+    logger.info(
+        "[Scorer] Score=%s status=%s confidence=%s coverage=%s",
+        result["private_score"],
+        result["scoring_status"],
+        result["meta"].get("confidence"),
+        result["meta"].get("evidence_coverage"),
     )
     snapshot_hash = evidence_hash(signals, evidence, identity)
     elapsed = round(time.perf_counter() - start, 3)
@@ -174,7 +188,7 @@ async def score_company(
         "category_summary": result["category_summary"],
         "risk_flags": result["risk_flags"],
         "evidence": evidence,
-        "candidates": [],
+        "candidates": [item.as_dict() for item in resolved.candidates],
         "company": resolved.as_dict(),
         "score": {
             "value": result["private_score"],
@@ -203,14 +217,11 @@ async def score_company(
             "warnings": warnings,
         },
         "elapsed_seconds": elapsed,
-        "resolution": {
-            "limited_identification": resolved.limited_identification,
-            "needs_disambiguation": False,
-            "resolution_confidence": resolved.resolution_confidence,
-        },
+        "resolution": resolved.resolution_payload(),
     }
     response["report"] = build_company_report(response)
     await score_cache.set(cache_key, response)
+    logger.info("[Report] Generated successfully for %r score=%s", response["company_name"], response["private_score"])
     return response
 
 
@@ -234,7 +245,7 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
     if scoring_status == "validation_hold":
         headline = f"{company_name} has sufficient evidence, but the model is awaiting validation approval."
     elif scoring_status == "needs_disambiguation":
-        headline = f"{company_name} matches more than one organisation. Choose the intended company."
+        headline = f"{company_name} matches more than one company. Choose the intended company."
     elif scoring_status == "limited":
         headline = f"{company_name} has a {rating_status.lower()} research risk profile with limited data coverage."
     elif scoring_status not in PUBLISHED_SCORE_STATUSES:

@@ -98,6 +98,15 @@ class CompanyScoreRequest(BaseModel):
     address: str | None = Field(default=None, max_length=300)
     provider_ids: dict[str, str] = Field(default_factory=dict)
     refresh: bool = False
+    selected_title: str | None = Field(default=None, max_length=180)
+
+    @field_validator("selected_title")
+    @classmethod
+    def clean_selected_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = " ".join(value.split())
+        return cleaned or None
 
     @field_validator("provider_ids")
     @classmethod

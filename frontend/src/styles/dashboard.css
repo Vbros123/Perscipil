@@ -693,6 +693,14 @@
   font-size: 13px;
 }
 
+.candidate-card.is-preferred {
+  border-color: var(--accent);
+}
+
+.candidate-card.is-low-relevance {
+  opacity: 0.78;
+}
+
 /* Compare */
 .compare-form {
   display: grid;

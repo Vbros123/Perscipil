@@ -3,7 +3,7 @@ import time
 from conftest import strong_password
 
 
-async def fake_score_company(company_name: str, identity=None, refresh=False):
+async def fake_score_company(company_name: str, identity=None, refresh=False, selected_title=None):
     normalized = company_name.strip().lower()
     score = 760 if normalized.startswith("alpha") else 640
     return {
