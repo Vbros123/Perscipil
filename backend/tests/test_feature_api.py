@@ -48,7 +48,11 @@ def test_full_authenticated_workspace_flow(api, monkeypatch):
     assert api.get("/api/metrics").status_code == 404
     assert api.get("/api/compliance/status").status_code == 200
     assert len(api.get("/api/signals").json()["signals"]) == 11
-    assert len(api.get("/api/providers").json()["providers"]) == 3
+    providers = api.get("/api/providers").json()
+    assert providers["effective_data_mode"] == "public"
+    assert len(providers["providers"]) >= 8
+    assert any(item["key"] == "wikipedia" for item in providers["providers"])
+    assert all(item["status"] == "unavailable" for item in providers["providers"] if item["track"] == "licensed")
     assert api.get("/api/cache/stats").status_code == 200
 
     assert api.get("/api/watchlist").status_code == 401

@@ -65,6 +65,8 @@ SIGNAL_SPECS: dict[str, dict[str, Any]] = {
         "providers": ["creditsafe"],
         "max_age_days": 120,
         "track": "licensed",
+        "role": "core",
+        "quality_hint": "high",
     },
     "B2B Payment Behavior": {
         "weight": 0.20,
@@ -72,6 +74,8 @@ SIGNAL_SPECS: dict[str, dict[str, Any]] = {
         "providers": ["creditsafe"],
         "max_age_days": 120,
         "track": "licensed",
+        "role": "core",
+        "quality_hint": "high",
     },
     "Cash Flow & Liquidity": {
         "weight": 0.20,
@@ -79,6 +83,8 @@ SIGNAL_SPECS: dict[str, dict[str, Any]] = {
         "providers": ["codat"],
         "max_age_days": 45,
         "track": "licensed",
+        "role": "core",
+        "quality_hint": "high",
     },
     "Business Identity & Standing": {
         "weight": 0.15,
@@ -86,6 +92,8 @@ SIGNAL_SPECS: dict[str, dict[str, Any]] = {
         "providers": ["middesk"],
         "max_age_days": 180,
         "track": "licensed",
+        "role": "core",
+        "quality_hint": "high",
     },
     "Liens, Bankruptcy & Litigation": {
         "weight": 0.15,
@@ -93,34 +101,44 @@ SIGNAL_SPECS: dict[str, dict[str, Any]] = {
         "providers": ["middesk"],
         "max_age_days": 120,
         "track": "licensed",
+        "role": "core",
+        "quality_hint": "high",
     },
     "Brand Legitimacy & Web Presence": {
-        "weight": 0.20,
+        "weight": 0.10,
         "category": "digital",
         "providers": ["wikipedia"],
         "max_age_days": 365,
         "track": "public",
+        "role": "supporting",
+        "quality_hint": "low",
     },
     "Company Stability": {
-        "weight": 0.15,
+        "weight": 0.10,
         "category": "operational",
         "providers": ["wikipedia"],
         "max_age_days": 365,
         "track": "public",
+        "role": "supporting",
+        "quality_hint": "medium",
     },
     "Job Posting Velocity": {
-        "weight": 0.20,
+        "weight": 0.12,
         "category": "operational",
         "providers": ["indeed"],
         "max_age_days": 14,
         "track": "public",
+        "role": "supporting",
+        "quality_hint": "low",
     },
     "News & Media Sentiment": {
-        "weight": 0.15,
+        "weight": 0.08,
         "category": "sentiment",
         "providers": ["duckduckgo", "hackernews"],
         "max_age_days": 14,
         "track": "public",
+        "role": "supporting",
+        "quality_hint": "low",
     },
     "Government Contract Awards": {
         "weight": 0.10,
@@ -128,6 +146,8 @@ SIGNAL_SPECS: dict[str, dict[str, Any]] = {
         "providers": ["usaspending"],
         "max_age_days": 365,
         "track": "public",
+        "role": "core",
+        "quality_hint": "high",
     },
 }
 
@@ -404,6 +424,7 @@ def _base_signal(
         "provider_entity_id": bundle.entity_match.provider_entity_id,
         "transform_version": "evidence-transform-1.0",
         "quality_flags": sorted({flag for item in observations for flag in item.quality_flags}),
+        "evidence_quality": "high",
     }
 
 
@@ -581,6 +602,7 @@ def unavailable_signal(name: str) -> dict[str, Any]:
         "source_url": PROVIDER_CATALOG[spec["providers"][0]]["official_docs"],
         "insight": f"Requires entity-resolved evidence from {' or '.join(provider_names)}. No company value was inferred.",
         "expected_providers": provider_names,
+        "evidence_quality": "unavailable",
     }
 
 

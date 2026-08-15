@@ -8,6 +8,8 @@ Backend docs: https://privatelens.onrender.com/docs
 
 PrivateLens is a research tool and does not provide credit, investment, legal, or lending advice.
 
+PrivateLens currently operates primarily on public and modelled signals. Licensed credit, cash-flow, and legal data integrations are architected but not enabled until legitimate provider agreements and credentials are available. Public collectors can be incomplete or unavailable. PrivateScore™ is a research/intelligence score and is not credit, investment, lending, legal, or financial advice.
+
 ## Product Surface
 
 - Account signup, login, JWT sessions, and `/api/auth/me`
@@ -59,6 +61,11 @@ backend/
     scorer.py
     history.py
     reports.py
+    providers/
+      base.py
+      public.py
+      licensed.py
+      registry.py
 ops/
   backup_postgres.sh
   restore_postgres.sh
@@ -128,9 +135,9 @@ Vite runs on `http://localhost:3001`.
 | `APP_PUBLIC_URL` | Yes in production | `http://localhost:5173` | Used for reset/verification links. |
 | `SENTRY_DSN` | Recommended | | Enables optional Sentry error capture and traces. |
 | `METRICS_TOKEN` | Yes in production | | Bearer token for `/api/metrics`. |
-| `DATA_MODE` | No | `public` | Use `public` for open-data collectors or `licensed` for paid-provider overrides. |
-| `LICENSED_DATA_GATEWAY_URL` | In licensed mode | | Normalization gateway for paid data feeds. |
-| `LICENSED_DATA_API_KEY` | In licensed mode | | Bearer token for the gateway. |
+| `DATA_MODE` | No | `public` | `public`, `licensed`, or `hybrid`. Missing licensed credentials fall back to public. |
+| `LICENSED_DATA_GATEWAY_URL` | Optional | | HTTPS evidence gateway. Leave empty until a real provider is contracted. |
+| `LICENSED_DATA_API_KEY` | Optional | | Bearer token for the gateway. Never commit a real key. |
 | `MODEL_RELEASE_STAGE` | No | `shadow` | Use `validated` only after independent approval. |
 | `MODEL_VALIDATION_REFERENCE` | With validated release | | Immutable validation packet ID. |
 | `MODEL_VALIDATION_SHA256` | With validated release | | SHA-256 of the approved packet. |
@@ -198,7 +205,7 @@ The included `render.yaml` deploys the API on Render Free. Use a Neon Free poole
 4. Set all `sync: false` secrets in Render.
 5. Keep `AUTO_CREATE_TABLES=false`.
 
-SQLite works locally only. Production startup intentionally fails unless `DATABASE_URL` points to managed Postgres, metrics are protected, and email uses Resend or SMTP. Licensed gateway credentials are required only when `DATA_MODE=licensed`.
+SQLite works locally only. Production startup intentionally fails unless `DATABASE_URL` points to managed Postgres, metrics are protected, and email uses Resend or SMTP. Licensed gateway credentials are optional; if they are missing, `DATA_MODE=licensed` or `hybrid` falls back to public collectors instead of crashing.
 
 ### Vercel Frontend
 
@@ -210,13 +217,56 @@ SQLite works locally only. Production startup intentionally fails unless `DATABA
 
 ## Data Sources And Limits
 
-Live/free collectors currently include SEC EDGAR, Wikipedia, DuckDuckGo, HackerNews, and USASpending.gov. These sources are research context only and do not produce a financial-health rating. External pages such as job boards may block automated requests; unavailable signals are left unscored and do not contain generated company values.
+PrivateLens currently operates primarily on public and modelled signals.
 
-`DATA_MODE=public` uses the built-in public/open-data collectors and intentionally returns `Unrated` because no public collector is treated as calibrated financial-health evidence. Licensed mode accepts raw, entity-resolved observations through the v2 gateway contract. Vendor-produced composite scores are rejected.
+| Source | Quality when live | Notes |
+|---|---|---|
+| SEC EDGAR | High | Context / not applicable for most private companies |
+| USASpending | High | US federal awards only; a floor across retrieved pages |
+| Wikipedia | Low | Identity and founding-year context |
+| Indeed | Low | Job-count proxy; often blocked |
+| DuckDuckGo / Hacker News | Low | Coarse keyword sentiment |
+| Modelled signals | Modelled | Discounted; never treated as verified |
+| Licensed credit / cash-flow / legal | High if configured | **Unavailable** until a real gateway and credentials exist |
 
-The selected provider architecture is Creditsafe Connect for commercial credit and payment behavior, Middesk for business verification and legal records, and Codat for company-consented accounting or banking aggregates. See `ops/licensed_provider_plan.md` for official documentation, procurement, permitted-use review, and activation order.
+Collectors run concurrently. One timeout cannot stop the rest. If every public collector fails, the report is **Insufficient public evidence** — no score is manufactured.
 
-A numeric rating requires at least 70% model-weight coverage, verified legal identity, and two licensed providers. It remains blocked with `Validation hold` until `MODEL_RELEASE_STAGE=validated` and production includes an approved `MODEL_VALIDATION_REFERENCE`, its `MODEL_VALIDATION_SHA256`, and `MODEL_APPROVED_BY`.
+### DATA_MODE
+
+- `public`: public collectors + clearly labelled modelled signals
+- `licensed`: licensed gateway + public sources (requires `LICENSED_DATA_GATEWAY_URL` and `LICENSED_DATA_API_KEY`)
+- `hybrid`: licensed when the gateway is configured, otherwise public fallback
+
+Production currently uses `DATA_MODE=public`.
+
+Licensed credit, cash-flow, and legal data integrations are architected in `backend/services/providers/` but not enabled. Connecting a real provider later:
+
+1. Deploy `provider_gateway/` with vendor credentials (never in this repo).
+2. Set `LICENSED_DATA_GATEWAY_URL` to the HTTPS evidence endpoint.
+3. Set `LICENSED_DATA_API_KEY` to the shared bearer token.
+4. Set `DATA_MODE=hybrid` or `licensed`.
+5. Keep `MODEL_RELEASE_STAGE=shadow` until a validation packet is approved.
+
+The gateway must return `privatelens.evidence.v2` observations. Vendor composite scores are rejected. PrivateLens does not invent financial, payment, credit, or legal records.
+
+A licensed numeric rating still requires at least 70% licensed-weight coverage, verified legal identity, and two licensed providers, and remains blocked with `Validation hold` until `MODEL_RELEASE_STAGE=validated` plus `MODEL_VALIDATION_REFERENCE`, `MODEL_VALIDATION_SHA256`, and `MODEL_APPROVED_BY`.
+
+## Licensed Data Architecture
+
+```text
+Company
+   |
+   +-- public collectors (SEC, Wikipedia, jobs, news, USASpending)
+   +-- LicensedDataProvider (unavailable unless configured)
+   |
+Signal aggregator (standardized Signal objects)
+   |
+Scoring engine (does not care which vendor produced a signal)
+   |
+Report
+```
+
+See `ops/licensed_provider_plan.md` and `ops/licensed_data_gateway_contract.md`.
 
 ## Provider Gateway
 
@@ -296,3 +346,19 @@ Metrics:
 ```bash
 curl -H "Authorization: Bearer $METRICS_TOKEN" https://privatelens.onrender.com/api/metrics
 ```
+
+## Known Limitations
+
+- Production runs `DATA_MODE=public`. There is no live licensed credit, cash-flow, or legal feed.
+- Wikipedia, Indeed, and DuckDuckGo/Hacker News are coarse public collectors and are labelled low quality.
+- Job boards and search engines may block or rate-limit automated requests.
+- If every public collector times out, the result is Insufficient public evidence — not a guessed score.
+- Company resolution uses public encyclopedic sources and can be ambiguous for common names.
+- PrivateScore™ is not a credit bureau rating, investment recommendation, or lending decision.
+
+## Roadmap
+
+- Connect Creditsafe, Middesk, and Codat through the existing licensed gateway contract after signed agreements.
+- Raise `MODEL_RELEASE_STAGE` to `validated` only after an independent out-of-time validation packet.
+- Replace remaining low-quality public collectors as licensed coverage comes online.
+

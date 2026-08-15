@@ -16,10 +16,10 @@ logger = logging.getLogger("privatelens.licensed_data")
 
 
 def enabled() -> bool:
+    settings = get_settings()
     return bool(
-        settings.DATA_MODE == "licensed"
-        and settings.LICENSED_DATA_GATEWAY_URL
-        and settings.LICENSED_DATA_API_KEY
+        settings.effective_data_mode in {"licensed", "hybrid"}
+        and settings.licensed_credentials_present
     )
 
 

@@ -11,6 +11,7 @@ from core.cache import score_cache
 from core.config import get_settings
 from services.collectors import collect_all
 from services.evidence import CompanyIdentity, evidence_hash
+from services.licensed_data import enabled as licensed_data_enabled
 from services.resolver import ResolvedCompany, canonical_key, resolve_company
 from services.scorer import PUBLISHED_SCORE_STATUSES, compute_score
 
@@ -67,7 +68,8 @@ def _disambiguation_response(
             "coverage": 0,
         },
         "signals": [],
-        "dataCoverage": {"live": 0, "modelled": 0, "unavailable": 0, "notApplicable": 0},
+        "dataCoverage": {"live": 0, "modelled": 0, "unavailable": 0, "notApplicable": 0, "totalSignals": 0, "coveragePercent": 0},
+        "dataSources": [],
         "metadata": {
             "generatedAt": datetime.now(timezone.utc).isoformat(),
             "modelVersion": "public-v1",
@@ -90,6 +92,49 @@ def _disambiguation_response(
     return response
 
 
+def _data_sources(collection: dict[str, Any]) -> list[dict[str, Any]]:
+    cards = []
+    for item in collection.get("collector_results") or []:
+        if hasattr(item, "as_source_card"):
+            cards.append(item.as_source_card())
+    cards.append({
+        "source": "Licensed Financial Data",
+        "key": "licensed",
+        "status": "live" if licensed_data_enabled() else "unavailable",
+        "evidenceQuality": "high" if licensed_data_enabled() else "unavailable",
+        "errorCode": None if licensed_data_enabled() else "NOT_CONFIGURED",
+        "retrievedAt": None,
+    })
+    if any((item.get("availability_status") or item.get("status")) == "modelled" for item in collection.get("signals") or []):
+        cards.append({
+            "source": "Modelled Signals",
+            "key": "modelled",
+            "status": "modelled",
+            "evidenceQuality": "modelled",
+            "errorCode": None,
+            "retrievedAt": None,
+        })
+    return cards
+
+
+def _growth_signals(breakdown: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    growth = []
+    for item in breakdown:
+        if not item.get("used_in_score"):
+            continue
+        if item.get("evidence_role") != "positive":
+            continue
+        if item.get("category") not in {"operational", "financial"}:
+            continue
+        growth.append({
+            "name": item.get("signal"),
+            "score": item.get("raw_score"),
+            "explanation": item.get("insight"),
+            "evidenceQuality": item.get("evidence_quality"),
+        })
+    return growth[:5]
+
+
 def _nested_signals(breakdown: list[dict[str, Any]]) -> list[dict[str, Any]]:
     nested = []
     for item in breakdown:
@@ -102,8 +147,11 @@ def _nested_signals(breakdown: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "status": item.get("availability_status") or item.get("status") or "unavailable",
             "source": item.get("provider") or item.get("track"),
             "sourceUrl": item.get("source_url"),
+            "retrievedAt": item.get("retrieved_at") or item.get("observed_at"),
             "lastUpdated": item.get("retrieved_at") or item.get("observed_at"),
             "explanation": item.get("insight"),
+            "evidenceQuality": item.get("evidence_quality") or item.get("evidenceQuality"),
+            "evidenceRole": item.get("evidence_role"),
         })
     return nested
 
@@ -118,7 +166,7 @@ async def score_company(
     company_clean = identity.legal_name
     start = time.perf_counter()
     selected = (selected_title or "").strip() or None
-    cache_key = "score:v5:" + identity.cache_key() + (f":sel:{canonical_key(selected)}" if selected else "")
+    cache_key = "score:v7:" + identity.cache_key() + (f":sel:{canonical_key(selected)}" if selected else "")
 
     if not refresh:
         cached = await score_cache.get(cache_key)
@@ -174,6 +222,19 @@ async def score_company(
     if resolved.limited_identification:
         warnings.append("Limited company identification. Score uses whatever public signals could be collected.")
 
+    collectors = collection.get("collector_results") or []
+    source_attempts = {
+        "attempted": len(collectors),
+        "successful": sum(1 for item in collectors if item.status in {"live", "modelled", "not_applicable"}),
+        "unavailable": sum(1 for item in collectors if item.status == "unavailable"),
+        "failed": [
+            {"source": item.source, "errorCode": item.error_code or item.error}
+            for item in collectors if item.status == "unavailable"
+        ],
+    }
+    data_sources = _data_sources(collection)
+    growth_signals = _growth_signals(result["breakdown"])
+
     response = {
         "company_name": resolved.canonical_name or company_clean,
         "canonical_name": resolved.canonical_name or company_clean,
@@ -196,9 +257,15 @@ async def score_company(
             "riskLevel": risk_level(result["private_score"], result["scoring_status"]),
             "confidence": result["meta"]["confidence"],
             "coverage": result["meta"]["evidence_coverage"],
+            "evidenceQuality": result["meta"].get("evidence_quality"),
+            "observedStrength": result["meta"].get("observed_strength"),
+            "ceiling": result["meta"].get("score_ceiling"),
         },
         "signals": _nested_signals(result["breakdown"]),
         "dataCoverage": data_coverage,
+        "dataSources": data_sources,
+        "growthSignals": growth_signals,
+        "sourceAttempts": source_attempts,
         "metadata": {
             "generatedAt": datetime.now(timezone.utc).isoformat(),
             "modelVersion": result["meta"]["model_version"],
@@ -215,6 +282,8 @@ async def score_company(
             "legal_disclaimer": DISCLAIMER,
             "partial_source_failure": bool(collection.get("partial_failure")),
             "warnings": warnings,
+            "retry_available": True,
+            "effective_data_mode": settings.effective_data_mode,
         },
         "elapsed_seconds": elapsed,
         "resolution": resolved.resolution_payload(),
@@ -247,9 +316,15 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
     elif scoring_status == "needs_disambiguation":
         headline = f"{company_name} matches more than one company. Choose the intended company."
     elif scoring_status == "limited":
-        headline = f"{company_name} has a {rating_status.lower()} research risk profile with limited data coverage."
+        headline = (
+            f"{company_name} has a {rating_status.lower()} research profile based on limited public evidence. "
+            "The score is not a complete financial assessment."
+        )
     elif scoring_status not in PUBLISHED_SCORE_STATUSES:
-        headline = f"{company_name} is unrated because no usable signals were available."
+        headline = (
+            f"{company_name}: insufficient public evidence. "
+            "PrivateLens could not obtain enough reliable external evidence to calculate a meaningful PrivateScore."
+        )
         if scoring_status == "insufficient_data":
             headline = f"{company_name} is unrated because required evidence gates were not met."
     else:
@@ -267,7 +342,11 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
                 "key": key,
                 "label": value.get("label"),
                 "score": value.get("score"),
+                "weight": value.get("weight_coverage"),
                 "signal_count": value.get("signal_count"),
+                "evidenceQuality": value.get("evidence_quality") or value.get("evidenceQuality"),
+                "coverage": value.get("coverage"),
+                "explanation": value.get("explanation"),
             }
             for key, value in (score_data.get("category_summary") or {}).items()
         ],
@@ -278,6 +357,7 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
         "data_quality": {
             "confidence": score_data.get("meta", {}).get("confidence", 0),
             "evidence_coverage": score_data.get("meta", {}).get("evidence_coverage", 0),
+            "evidence_quality": score_data.get("meta", {}).get("evidence_quality"),
             "scored_weight": score_data.get("meta", {}).get("scored_weight", 0),
             "providers_used": score_data.get("meta", {}).get("providers_used", []),
             "gates": score_data.get("meta", {}).get("gates", {}),
@@ -291,9 +371,15 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
             "Treat this Public PrivateScore as research context, not a credit-bureau rating.",
         ],
         "limitations": [
-            "Missing and not-applicable sources are excluded from the score; they are never treated as zero.",
-            "Public signals are approximate (keyword jobs, news polarity, Wikipedia identity, top-N awards).",
+            "Missing and not-applicable sources are excluded from the score; they are never treated as positive or as zero.",
+            "Public signals (keyword jobs, news polarity, Wikipedia identity) are supporting evidence and cannot produce a perfect score by themselves.",
+            "Modelled estimates carry a reduced weight and cannot dominate a live report.",
             "Licensed credit, cash-flow, and legal evidence stay unavailable until a real gateway is configured.",
         ],
+        "growth_signals": score_data.get("growthSignals") or [],
+        "data_sources": score_data.get("dataSources") or [],
+        "last_updated": score_data.get("metadata", {}).get("generatedAt") or score_data.get("meta", {}).get("computed_at"),
+        "model_version": score_data.get("meta", {}).get("model_version") or score_data.get("metadata", {}).get("modelVersion"),
+        "data_version": score_data.get("metadata", {}).get("dataVersion") or score_data.get("meta", {}).get("model_version"),
         "disclaimer": DISCLAIMER,
     }

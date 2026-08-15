@@ -149,15 +149,6 @@ async def list_signals():
 
 @router.get("/providers")
 async def list_providers():
-    return {
-        "gateway_configured": licensed_data_enabled(),
-        "providers": [
-            {
-                "key": key,
-                **provider,
-                "gateway_connected": licensed_data_enabled(),
-                "status": "gateway-connected; provider readiness reported by gateway" if licensed_data_enabled() else "contract-and-credentials-required",
-            }
-            for key, provider in PROVIDER_CATALOG.items()
-        ],
-    }
+    from services.providers.registry import get_registry
+
+    return get_registry().get_provider_status()

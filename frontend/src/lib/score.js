@@ -2,7 +2,7 @@
 // PrivateScore. The API returns scoring_status; older rows may only carry a
 // rating string, so both are checked rather than guessing from the number.
 
-const UNRATED_RATINGS = new Set(['Preliminary', 'Validation hold', 'Unrated'])
+const UNRATED_RATINGS = new Set(['Preliminary', 'Validation hold', 'Unrated', 'Insufficient public evidence'])
 const PUBLISHED_STATUSES = new Set(['rated', 'limited'])
 
 export function isRated(item) {
@@ -24,6 +24,9 @@ export function displayScore(item, fallback = 'N/A') {
 
 export function displayRating(item, fallback = 'Unrated') {
   if (!isRated(item)) {
+    if (item?.scoring_status === 'unrated' || item?.rating === 'Insufficient public evidence') {
+      return 'Insufficient public evidence'
+    }
     if (!item?.rating) return fallback
     return UNRATED_RATINGS.has(item.rating) ? 'Unrated' : fallback
   }

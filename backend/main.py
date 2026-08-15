@@ -128,7 +128,8 @@ def health():
         "email": settings.EMAIL_DELIVERY_MODE,
         "observability": {"sentry": bool(settings.SENTRY_DSN), "metrics": bool(settings.METRICS_TOKEN)},
         "data_mode": settings.DATA_MODE,
-        "licensed_data": bool(settings.LICENSED_DATA_GATEWAY_URL and settings.LICENSED_DATA_API_KEY),
+        "effective_data_mode": settings.effective_data_mode,
+        "licensed_data": bool(settings.licensed_credentials_present and settings.effective_data_mode in {"licensed", "hybrid"}),
         "model_release_stage": settings.MODEL_RELEASE_STAGE,
     }
 

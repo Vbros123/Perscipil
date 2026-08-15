@@ -24,15 +24,27 @@ def test_free_production_stack_is_valid():
     production_settings().validate_runtime()
 
 
-def test_licensed_mode_requires_gateway_credentials():
+def test_licensed_mode_without_credentials_falls_back_to_public():
     settings = production_settings(DATA_MODE="licensed")
+    settings.validate_runtime()
+    assert settings.effective_data_mode == "public"
+    assert settings.licensed_credentials_present is False
 
-    try:
+
+def test_hybrid_mode_without_credentials_falls_back_to_public():
+    settings = production_settings(DATA_MODE="hybrid")
+    settings.validate_runtime()
+    assert settings.effective_data_mode == "public"
+
+
+def test_licensed_mode_requires_https_when_credentials_are_present():
+    settings = production_settings(
+        DATA_MODE="licensed",
+        LICENSED_DATA_GATEWAY_URL="http://gateway.example.com/v2/evidence",
+        LICENSED_DATA_API_KEY="g" * 32,
+    )
+    with pytest.raises(RuntimeError, match="Licensed data gateway"):
         settings.validate_runtime()
-    except RuntimeError as exc:
-        assert "Licensed data gateway" in str(exc)
-    else:
-        raise AssertionError("Licensed mode accepted missing gateway credentials")
 
 
 def test_validated_release_requires_documented_approval():

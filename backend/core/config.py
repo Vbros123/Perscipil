@@ -52,7 +52,7 @@ class Settings(BaseSettings):
 
     # Public mode uses the built-in open-data collectors. Licensed mode adds
     # paid-provider overrides through the vendor-normalization gateway.
-    DATA_MODE: Literal["public", "licensed"] = "public"
+    DATA_MODE: Literal["public", "licensed", "hybrid"] = "public"
     LICENSED_DATA_GATEWAY_URL: str | None = None
     LICENSED_DATA_API_KEY: str | None = None
     LICENSED_DATA_TIMEOUT: float = 6.0
@@ -97,6 +97,25 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"
 
+    @property
+    def licensed_credentials_present(self) -> bool:
+        url = (self.LICENSED_DATA_GATEWAY_URL or "").strip()
+        key = (self.LICENSED_DATA_API_KEY or "").strip()
+        return bool(url and key)
+
+    @property
+    def effective_data_mode(self) -> str:
+        """Configured mode, falling back to public when no licensed gateway exists.
+
+        Missing credentials never invent financial data. They also must not crash
+        the API: public collectors still run.
+        """
+        if self.DATA_MODE == "public":
+            return "public"
+        if self.licensed_credentials_present:
+            return self.DATA_MODE
+        return "public"
+
     @field_validator("JWT_SECRET")
     @classmethod
     def validate_jwt_secret(cls, value: str) -> str:
@@ -126,15 +145,12 @@ class Settings(BaseSettings):
             raise RuntimeError("Production email delivery must use 'smtp' or 'resend'.")
         if not self.METRICS_TOKEN or len(self.METRICS_TOKEN) < 24:
             raise RuntimeError("METRICS_TOKEN must be set to a strong value in production.")
-        if self.DATA_MODE == "licensed" and (
-            not self.LICENSED_DATA_GATEWAY_URL or not self.LICENSED_DATA_API_KEY
-        ):
-            raise RuntimeError("Licensed data gateway URL and API key are required in production.")
-        if self.DATA_MODE == "licensed" and not self.LICENSED_DATA_GATEWAY_URL.startswith("https://"):
-            raise RuntimeError("Licensed data gateway must use HTTPS in production.")
+        if self.DATA_MODE == "licensed" and self.licensed_credentials_present:
+            if not self.LICENSED_DATA_GATEWAY_URL.startswith("https://"):
+                raise RuntimeError("Licensed data gateway must use HTTPS in production.")
         if self.MODEL_RELEASE_STAGE == "validated":
-            if self.DATA_MODE != "licensed":
-                raise RuntimeError("A validated model release requires licensed data mode.")
+            if self.effective_data_mode not in {"licensed", "hybrid"} or not self.licensed_credentials_present:
+                raise RuntimeError("A validated model release requires a configured licensed gateway.")
             if not self.MODEL_VALIDATION_REFERENCE or not self.MODEL_APPROVED_BY:
                 raise RuntimeError("Validated model releases require a validation reference and approver.")
             if not self.MODEL_VALIDATION_SHA256 or not re.fullmatch(r"[a-fA-F0-9]{64}", self.MODEL_VALIDATION_SHA256):

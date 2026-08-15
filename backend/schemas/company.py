@@ -79,6 +79,9 @@ class NestedScore(BaseModel):
     riskLevel: str | None = None
     confidence: float = 0
     coverage: float = 0
+    evidenceQuality: str | None = None
+    observedStrength: float | None = None
+    ceiling: int | None = None
 
 
 class NestedCompany(BaseModel):

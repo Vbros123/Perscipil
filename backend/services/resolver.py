@@ -581,6 +581,6 @@ async def resolve_company(name: str, selected_title: str | None = None) -> Resol
                 limited_identification=True,
                 entity_type=best.entity_type,
             )
-    except Exception:
-        logger.warning("[Resolver] Query=%r status=unresolved reason=exception", name, exc_info=True)
+    except Exception as exc:
+        logger.warning("[Resolver] Query=%r status=unresolved error_type=%s", name, type(exc).__name__)
         return _unresolved(name, key)

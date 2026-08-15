@@ -11,3 +11,10 @@ frontend/dist/
 .env*
 !.env.example
 !**/.env.example
+*.log
+logs/
+.pytest_cache/
+backend/.pytest_cache/
+backend/htmlcov/
+.coverage
+*.egg-info/

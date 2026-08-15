@@ -17,6 +17,15 @@ const STATUS_BADGES = {
   not_applicable: { label: 'NOT APPLICABLE', tone: 'neutral' },
 }
 
+const QUALITY_BADGES = {
+  high: { label: 'HIGH EVIDENCE', tone: 'positive' },
+  medium: { label: 'MEDIUM EVIDENCE', tone: 'accent' },
+  low: { label: 'LOW EVIDENCE', tone: 'warning' },
+  modelled: { label: 'MODELLED', tone: 'accent' },
+  unavailable: { label: 'MISSING', tone: 'warning' },
+  not_applicable: { label: 'NOT APPLICABLE', tone: 'neutral' },
+}
+
 export default function SignalCard({ signal }) {
   const rawScore = Number(signal?.raw_score)
   const hasScore = signal?.raw_score !== null && signal?.raw_score !== undefined && Number.isFinite(rawScore)
@@ -25,6 +34,8 @@ export default function SignalCard({ signal }) {
   const confidence = Number(signal?.entity_match_confidence)
   const statusKey = signal.availability_status || signal.status || (signal.is_simulated ? 'unavailable' : 'live')
   const badge = STATUS_BADGES[statusKey] || { label: String(statusKey).replaceAll('_', ' ').toUpperCase(), tone: 'neutral' }
+  const qualityKey = signal.evidenceQuality || signal.evidence_quality || (statusKey === 'modelled' ? 'modelled' : statusKey)
+  const qualityBadge = QUALITY_BADGES[qualityKey]
   const showScore = Boolean(signal.used_in_score) && hasScore
 
   return (
@@ -34,7 +45,12 @@ export default function SignalCard({ signal }) {
           <h3>{signal.signal}</h3>
           <p>{signal.provider || signal.category_label || signal.category}</p>
         </div>
-        <Badge tone={badge.tone}>{badge.label}</Badge>
+        <div className="signal-badges">
+          <Badge tone={badge.tone}>{badge.label}</Badge>
+          {qualityBadge && qualityKey !== statusKey && qualityKey !== 'unavailable' && qualityKey !== 'not_applicable' && (
+            <Badge tone={qualityBadge.tone}>{qualityBadge.label}</Badge>
+          )}
+        </div>
       </div>
       <div className="signal-score">
         <span>{signal.display}</span>

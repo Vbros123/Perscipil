@@ -47,7 +47,38 @@ class CollectorResult:
     status: str
     signals: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
+    error_code: str | None = None
     retrieved_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    evidence_quality: str | None = None
+
+    def as_source_card(self) -> dict[str, Any]:
+        labels = {
+            "sec": "SEC EDGAR",
+            "wikipedia": "Wikipedia",
+            "news": "DuckDuckGo / Hacker News",
+            "jobs": "Indeed",
+            "usaspending": "USASpending",
+        }
+        quality = self.evidence_quality
+        if quality is None:
+            if self.status == "live" and self.source in {"sec", "usaspending"}:
+                quality = "high"
+            elif self.status == "live":
+                quality = "low"
+            elif self.status == "modelled":
+                quality = "modelled"
+            elif self.status == "not_applicable":
+                quality = "not_applicable"
+            else:
+                quality = "unavailable"
+        return {
+            "source": labels.get(self.source, self.source),
+            "key": self.source,
+            "status": self.status,
+            "evidenceQuality": quality,
+            "errorCode": self.error_code,
+            "retrievedAt": self.retrieved_at,
+        }
 
 
 def _clamp(val: float, lo: float = 0, hi: float = 100) -> float:
@@ -56,6 +87,29 @@ def _clamp(val: float, lo: float = 0, hi: float = 100) -> float:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _http_timeout() -> httpx.Timeout:
+    budget = max(2.0, float(settings.HTTP_TIMEOUT))
+    return httpx.Timeout(connect=min(3.0, budget), read=budget, write=min(5.0, budget), pool=3.0)
+
+
+def _error_code(exc: BaseException) -> str:
+    if isinstance(exc, (httpx.TimeoutException, TimeoutError)):
+        return "TIMEOUT"
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code if exc.response is not None else 0
+        if status == 429:
+            return "RATE_LIMIT"
+        if status in {401, 403}:
+            return "BLOCKED"
+        return "HTTP_ERROR"
+    if isinstance(exc, (ValueError, KeyError, TypeError)):
+        return "MALFORMED"
+    name = type(exc).__name__.upper()
+    if "TIMEOUT" in name:
+        return "TIMEOUT"
+    return name[:32]
 
 
 def _public_signal(
@@ -69,8 +123,18 @@ def _public_signal(
     insight: str,
     raw_score: float | None = None,
     extra: dict[str, Any] | None = None,
+    evidence_quality: str | None = None,
 ) -> dict[str, Any]:
     scored = status in {"live", "modelled"} and raw_score is not None
+    if evidence_quality is None:
+        if status == "modelled":
+            evidence_quality = "modelled"
+        elif status == "unavailable":
+            evidence_quality = "unavailable"
+        elif status == "not_applicable":
+            evidence_quality = "not_applicable"
+        else:
+            evidence_quality = "low"
     payload = {
         "signal": name,
         "icon": icon,
@@ -83,6 +147,7 @@ def _public_signal(
         "source_url": source_url,
         "insight": insight,
         "retrieved_at": _now(),
+        "evidence_quality": evidence_quality,
     }
     if extra:
         payload.update(extra)
@@ -121,7 +186,12 @@ def _not_applicable_signal(signal: str, icon: str, category: str, source_url: st
     )
 
 
-def _result(source: str, signals: list[dict[str, Any]], error: str | None = None) -> CollectorResult:
+def _result(
+    source: str,
+    signals: list[dict[str, Any]],
+    error: str | None = None,
+    error_code: str | None = None,
+) -> CollectorResult:
     statuses = [item.get("availability_status") or "unavailable" for item in signals]
     if any(status in {"live", "modelled"} and item.get("is_scored") for status, item in zip(statuses, signals)):
         overall = "live" if any(status == "live" for status in statuses) else "modelled"
@@ -129,35 +199,47 @@ def _result(source: str, signals: list[dict[str, Any]], error: str | None = None
         overall = "not_applicable"
     else:
         overall = "unavailable"
-    return CollectorResult(source=source, status=overall, signals=signals, error=error, retrieved_at=_now())
+    return CollectorResult(
+        source=source,
+        status=overall,
+        signals=signals,
+        error=error,
+        error_code=error_code,
+        retrieved_at=_now(),
+    )
 
 
 def _hiring_score(count: int) -> float:
+    # A live zero is "no current postings", not a mid-range default. Keyword job
+    # counts also cannot reach 100 — they are not entity-resolved headcount.
     if count <= 0:
-        return 28.0
-    return _clamp(28.0 + math.log10(count + 1) * 22.0)
+        return 22.0
+    return _clamp(22.0 + math.log10(count + 1) * 18.0, 0.0, 88.0)
 
 
 def _news_score(pos: int, neg: int, hn_hits: int) -> float:
     polarity = (pos - neg) / (pos + neg)
-    return _clamp(50.0 + polarity * 40.0 + min(10, hn_hits))
+    # Keyword polarity is a weak supporting signal. Cap well below 100 so a
+    # handful of positive words cannot look like verified financial strength.
+    return _clamp(50.0 + polarity * 20.0 + min(5.0, hn_hits * 0.35), 20.0, 72.0)
 
 
 def _award_score(total: float) -> float:
-    return _clamp(35.0 + math.log10(max(total, 0.0) + 1.0) * 10.0)
+    return _clamp(math.log10(max(total, 0.0) + 1.0) * 11.0, 0.0, 92.0)
 
 
 def _stability_score(founded_year: int) -> float:
     age = datetime.now().year - founded_year
+    # Age is a supporting operational band, not proof of creditworthiness.
     if age >= 50:
-        return 90.0
+        return 76.0
     if age >= 20:
-        return 80.0
+        return 66.0
     if age >= 10:
-        return 70.0
+        return 56.0
     if age >= 5:
-        return 60.0
-    return 50.0
+        return 48.0
+    return 40.0
 
 
 # ── REAL COLLECTORS ────────────────────────────────────────────────────────────
@@ -174,7 +256,7 @@ async def collect_sec_edgar(name: str, resolved=None) -> CollectorResult:
             f"?q=%22{name.replace(' ', '+')}%22"
             f"&dateRange=custom&startdt={start}&enddt={end}"
         )
-        async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=_http_timeout()) as client:
             resp = await client.get(url, headers=HEADERS)
             if resp.status_code == 200:
                 data = resp.json()
@@ -220,12 +302,14 @@ async def collect_sec_edgar(name: str, resolved=None) -> CollectorResult:
                         + (" SEC caps this counter, so the true total is higher." if capped else "")
                     ),
                     extra={"is_scored": False, "is_simulated": False},
+                    evidence_quality="high",
                 )])
     except Exception as exc:
         return _result(
             "sec",
             [_unavailable_signal("SEC / Regulatory Filings", "📋", "legal", source_url)],
-            error=type(exc).__name__,
+            error=_error_code(exc),
+            error_code=_error_code(exc),
         )
     return _result(
         "sec",
@@ -253,13 +337,15 @@ def _wikipedia_signals_from_summary(name: str, summary: dict) -> list[dict[str, 
         icon="🌐",
         category="digital",
         display=f"Wikipedia article: {resolved_title}{age_note}",
-        raw_score=78.0,
+        raw_score=56.0,
         status="live",
         source_url=wiki_url,
+        evidence_quality="low",
         insight=(
             f"Matched the Wikipedia article \"{resolved_title}\""
             f"{' — ' + summary['description'] if summary.get('description') else ''}."
-            f"{age_note} Article presence is a digital-identity signal; article length is not scored."
+            f"{age_note} Article presence confirms a public identity page; it is not "
+            "a measure of revenue, customers, or financial health."
         ),
         extra={"matched_entity": resolved_title},
     )
@@ -273,10 +359,11 @@ def _wikipedia_signals_from_summary(name: str, summary: dict) -> list[dict[str, 
             status="live",
             source_url=wiki_url,
             insight=(
-                f"Wikipedia reports a founding year of {founded}. Age is used as a stability band, "
-                "not as proof of creditworthiness."
+                f"Wikipedia reports a founding year of {founded}. Age is a supporting stability band, "
+                "not proof of creditworthiness or commercial traction."
             ),
             extra={"matched_entity": resolved_title, "founded_year": founded},
+            evidence_quality="medium",
         )
     else:
         stability = _unavailable_signal(
@@ -331,7 +418,7 @@ async def collect_wikipedia(name: str, resolved=None) -> CollectorResult:
     if not requested:
         return _result("wikipedia", _no_wikipedia_signals(name, "no searchable company name was provided"))
     try:
-        async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=_http_timeout()) as client:
             search = await client.get(
                 "https://en.wikipedia.org/w/api.php",
                 params={
@@ -359,7 +446,7 @@ async def collect_wikipedia(name: str, resolved=None) -> CollectorResult:
                     return _result("wikipedia", signals)
             return _result("wikipedia", _no_wikipedia_signals(name, "no candidate article resolved to this organisation"))
     except Exception as exc:
-        return _result("wikipedia", _no_wikipedia_signals(name, "wikipedia lookup failed"), error=type(exc).__name__)
+        return _result("wikipedia", _no_wikipedia_signals(name, "wikipedia lookup failed"), error=_error_code(exc), error_code=_error_code(exc))
 
 
 async def collect_news_sentiment(name: str, resolved=None) -> CollectorResult:
@@ -377,7 +464,7 @@ async def collect_news_sentiment(name: str, resolved=None) -> CollectorResult:
             "recall", "dispute", "settlement", "penalty", "downgrade",
         }
 
-        async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=_http_timeout(), follow_redirects=True) as client:
             ddg = await client.get(
                 f"https://api.duckduckgo.com/?q={name.replace(' ', '+')}&format=json&no_html=1",
                 headers=HEADERS,
@@ -426,18 +513,21 @@ async def collect_news_sentiment(name: str, resolved=None) -> CollectorResult:
             display=f"{label} — {pos} positive, {neg} negative signals, {hn_hits} HN mentions",
             raw_score=_news_score(pos, neg, hn_hits),
             status="live",
+            evidence_quality="low",
             source_url=source_url,
             insight=(
                 f"Keyword context across DuckDuckGo and HackerNews: {pos} positive indicator(s), "
                 f"{neg} negative indicator(s), and {hn_hits} Hacker News mention(s). "
-                "This is a low-weight public sentiment signal, not entity-resolved credit news."
+                "This is a low-quality supporting sentiment signal, not entity-resolved credit news, "
+                "and it cannot by itself produce a high PrivateScore."
             ),
         )])
     except Exception as exc:
         return _result(
             "news",
             [_unavailable_signal("News & Media Sentiment", "📰", "sentiment", "https://newsapi.org")],
-            error=type(exc).__name__,
+            error=_error_code(exc),
+            error_code=_error_code(exc),
         )
 
 
@@ -445,7 +535,7 @@ async def collect_job_postings(name: str, resolved=None) -> CollectorResult:
     """Indeed job count via public search."""
     source_url = f"https://www.indeed.com/jobs?q=%22{quote(name)}%22"
     try:
-        async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=_http_timeout(), follow_redirects=True) as client:
             resp = await client.get(
                 f"https://www.indeed.com/jobs?q=%22{name.replace(' ', '+')}%22&sort=date",
                 headers={
@@ -485,10 +575,12 @@ async def collect_job_postings(name: str, resolved=None) -> CollectorResult:
                 display=f"{count_label} active job posting(s) — {trend}",
                 raw_score=_hiring_score(raw_count),
                 status="live",
+                evidence_quality="low",
                 source_url=source_url,
                 insight=(
                     f"{trend} ({count_label} postings reported by Indeed's public result counter). "
                     "Keyword search is not entity-resolved, so postings may belong to other employers. "
+                    "Hiring activity is a supporting operational signal, not proof of financial strength. "
                     + ("The public counter is capped, so this is a lower bound." if capped else "")
                 ),
             )])
@@ -496,7 +588,8 @@ async def collect_job_postings(name: str, resolved=None) -> CollectorResult:
         return _result(
             "jobs",
             [_unavailable_signal("Job Posting Velocity", "💼", "operational", source_url)],
-            error=type(exc).__name__,
+            error=_error_code(exc),
+            error_code=_error_code(exc),
         )
     return _result(
         "jobs",
@@ -509,7 +602,7 @@ async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
     """USASpending.gov — federal contract awards for an exact recipient name."""
     source_url = f"https://www.usaspending.gov/search/?query={name.replace(' ', '%20')}"
     try:
-        async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=_http_timeout()) as client:
             resp = await client.post(
                 "https://api.usaspending.gov/api/v2/search/spending_by_award/",
                 json={
@@ -525,7 +618,6 @@ async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
                     "order": "desc",
                 },
                 headers={**HEADERS, "Content-Type": "application/json"},
-                timeout=10,
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -562,6 +654,7 @@ async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
                     ),
                     raw_score=_award_score(total),
                     status="live",
+                    evidence_quality="medium",
                     source_url=source_url,
                     insight=(
                         f"USASpending.gov was queried for the {AWARD_PAGE_SIZE} largest awards since "
@@ -574,7 +667,8 @@ async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
         return _result(
             "usaspending",
             [_unavailable_signal("Government Contract Awards", "🏛️", "financial", "https://www.usaspending.gov")],
-            error=type(exc).__name__,
+            error=_error_code(exc),
+            error_code=_error_code(exc),
         )
     return _result(
         "usaspending",
@@ -597,12 +691,15 @@ FALLBACK_SIGNALS = {
 
 def _crash_result(source: str, error: BaseException) -> CollectorResult:
     specs = FALLBACK_SIGNALS.get(source, [(source, "data", "operational", "")])
+    code = _error_code(error)
     return CollectorResult(
         source=source,
         status="unavailable",
         signals=[_unavailable_signal(*spec) for spec in specs],
-        error=type(error).__name__,
+        error=code,
+        error_code=code,
         retrieved_at=_now(),
+        evidence_quality="unavailable",
     )
 
 
@@ -619,6 +716,7 @@ async def collect_all(identity: CompanyIdentity | str, resolved=None) -> dict:
         ("jobs", collect_job_postings(company_name, resolved)),
         ("usaspending", collect_usa_spending(company_name, resolved)),
     ]
+    licensed_task = asyncio.create_task(collect_licensed_signals(identity))
     gathered = await asyncio.gather(*(task for _, task in named), return_exceptions=True)
 
     collector_results: list[CollectorResult] = []
@@ -636,7 +734,13 @@ async def collect_all(identity: CompanyIdentity | str, resolved=None) -> dict:
         if item.error:
             partial_failure = True
 
-    licensed, evidence_audit = await collect_licensed_signals(identity)
+    try:
+        licensed, evidence_audit = await licensed_task
+    except Exception as exc:
+        licensed, evidence_audit = [], {
+            "gateway_enabled": False,
+            "error_code": _error_code(exc),
+        }
     evidence_audit["partial_source_failure"] = partial_failure
 
     seen: set[str] = set()

@@ -36,7 +36,7 @@ def test_public_wikipedia_and_jobs_publish_a_numeric_score():
     assert result["meta"]["scoring_track"] == "public"
     assert result["meta"]["confidence"] > 0
     assert result["meta"]["evidence_coverage"] > 0
-    assert result["meta"]["model_version"].startswith("public-v1")
+    assert result["meta"]["model_version"].startswith("public-v2")
 
 
 def test_sec_not_applicable_does_not_zero_the_score():
@@ -74,6 +74,7 @@ def test_all_collectors_empty_is_unrated():
 
     assert result["private_score"] is None
     assert result["scoring_status"] == "unrated"
+    assert result["rating"] == "Insufficient public evidence"
 
 
 def test_licensed_live_overlay_increases_coverage_without_fake_values():

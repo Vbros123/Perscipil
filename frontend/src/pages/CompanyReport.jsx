@@ -8,6 +8,7 @@ import Badge from '../components/common/Badge'
 import ErrorNotice from '../components/common/ErrorNotice'
 import PageHeader from '../components/common/PageHeader'
 import CompanySummary from '../components/company/CompanySummary'
+import DataSources from '../components/company/DataSources'
 import EvidencePanel from '../components/company/EvidencePanel'
 import SignalCard from '../components/company/SignalCard'
 
@@ -120,6 +121,20 @@ export default function CompanyReport() {
     }
   }
 
+  const refreshAnalysis = async () => {
+    reportRequest.current = { company: '', promise: null }
+    setLoading(true)
+    setError('')
+    try {
+      const data = await getScore(companyName, identity, true, selectedTitle)
+      setResult(data)
+    } catch (err) {
+      setError(err.message || 'Unable to refresh report.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const chooseCandidate = async (candidate) => {
     const title = candidate.name || candidate.canonicalName
     const params = new URLSearchParams()
@@ -157,18 +172,11 @@ export default function CompanyReport() {
           <div className="report-actions">
             <button
               className="btn"
-              onClick={() => {
-                reportRequest.current = { company: '', promise: null }
-                setLoading(true)
-                getScore(companyName, identity, true, selectedTitle)
-                  .then(setResult)
-                  .catch((err) => setError(err.message || 'Unable to refresh report.'))
-                  .finally(() => setLoading(false))
-              }}
+              onClick={refreshAnalysis}
               disabled={loading}
             >
               <RefreshCw size={16} />
-              Refresh
+              Refresh analysis
             </button>
             <button className="btn btn-primary" onClick={save} disabled={!result || saving || result.scoring_status === 'needs_disambiguation'}>
               <BookmarkPlus size={16} />
@@ -229,6 +237,32 @@ export default function CompanyReport() {
       {result && !loading && result.scoring_status !== 'needs_disambiguation' && (
         <>
           <CompanySummary result={result} />
+          {result.scoring_status === 'unrated' && (
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <div className="eyebrow">Insufficient public evidence</div>
+                  <h2>PrivateLens could not obtain enough reliable external evidence to calculate a meaningful PrivateScore™</h2>
+                </div>
+              </div>
+              <div className="source-attempt-stats">
+                <div><span>Public sources attempted</span><strong>{result.sourceAttempts?.attempted ?? 0}</strong></div>
+                <div><span>Successful</span><strong>{result.sourceAttempts?.successful ?? 0}</strong></div>
+                <div><span>Unavailable</span><strong>{result.sourceAttempts?.unavailable ?? 0}</strong></div>
+                <div><span>Confidence</span><strong>Very Low</strong></div>
+              </div>
+              {(result.sourceAttempts?.failed || []).length > 0 && (
+                <ul className="clean-list">
+                  {result.sourceAttempts.failed.map((item) => (
+                    <li key={item.source}>{item.source}: {item.errorCode || 'unavailable'}</li>
+                  ))}
+                </ul>
+              )}
+              <p>No score was manufactured. Retry analysis to query public sources again.</p>
+              <button type="button" className="btn btn-primary" onClick={refreshAnalysis}>Retry analysis</button>
+            </section>
+          )}
+          <DataSources result={result} />
           <EvidencePanel result={result} />
           <section className="panel">
             <div className="panel-head">
@@ -259,9 +293,10 @@ export default function CompanyReport() {
                 {result.report.categories.map((category) => (
                   <article key={category.key}>
                     <span>{category.label}</span>
-                    <strong>{Math.round(category.score)}/100</strong>
-                    <div className="progress-track"><div className="progress-fill fill-accent" style={{ width: `${category.score}%` }} /></div>
-                    <small>{category.signal_count} signals</small>
+                    <strong>{category.score == null ? '—' : `${Math.round(category.score)}/100`}</strong>
+                    <div className="progress-track"><div className="progress-fill fill-accent" style={{ width: `${category.score || 0}%` }} /></div>
+                    <small>{category.evidenceQuality ? `${category.evidenceQuality} evidence` : `${category.signal_count} signals`}</small>
+                    {category.explanation && <p className="category-copy">{category.explanation}</p>}
                   </article>
                 ))}
               </div>
