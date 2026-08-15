@@ -11,6 +11,7 @@ from core.security import get_optional_user
 from models.user import User
 from services.history import store_company_event
 from services.reports import normalize_company, score_company
+from services.scorer import PUBLISHED_SCORE_STATUSES
 
 router = APIRouter(prefix="/api", tags=["Compare"])
 logger = logging.getLogger("privatelens.compare")
@@ -66,7 +67,7 @@ async def compare(
         for result in valid:
             store_company_event(db, current_user, result, query_type="compare")
 
-    rated = [result for result in valid if result.get("scoring_status") == "rated"]
+    rated = [result for result in valid if result.get("scoring_status") in PUBLISHED_SCORE_STATUSES]
     # A peer set needs at least two peers that were actually scored. Ranking a
     # lone survivor of a failed batch would present it as the winner of a
     # comparison that never happened.

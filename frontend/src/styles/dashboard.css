@@ -638,6 +638,61 @@
   color: var(--muted);
 }
 
+.loading-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.loading-stages span {
+  color: var(--soft);
+}
+
+.loading-stages .is-active {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.report-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.report-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.candidate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.candidate-card {
+  display: grid;
+  gap: 6px;
+  min-height: 88px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.candidate-card:hover {
+  border-color: var(--accent);
+}
+
+.candidate-card span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 /* Compare */
 .compare-form {
   display: grid;

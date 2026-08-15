@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import copy
-import re
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -11,18 +10,20 @@ from core.cache import score_cache
 from core.config import get_settings
 from services.collectors import collect_all
 from services.evidence import CompanyIdentity, evidence_hash
-from services.scorer import compute_score
+from services.resolver import ResolvedCompany, canonical_key, resolve_company
+from services.scorer import PUBLISHED_SCORE_STATUSES, compute_score
 
 DISCLAIMER = "PrivateLens is a research tool and does not provide credit, investment, legal, or lending advice."
 settings = get_settings()
 
 
 def normalize_company(name: str) -> str:
-    return re.sub(r"\s+", " ", name.strip().lower())
+    key = canonical_key(name)
+    return key or " ".join((name or "").split()).lower()
 
 
 def risk_level(score: int | None, scoring_status: str = "rated") -> str:
-    if scoring_status != "rated" or score is None:
+    if scoring_status not in PUBLISHED_SCORE_STATUSES or score is None:
         return "Unrated"
     if score >= 750:
         return "Low"
@@ -33,31 +34,136 @@ def risk_level(score: int | None, scoring_status: str = "rated") -> str:
     return "High"
 
 
-async def score_company(company_name: str, identity: CompanyIdentity | None = None) -> dict[str, Any]:
+def _disambiguation_response(
+    company_name: str,
+    identity: CompanyIdentity,
+    resolved: ResolvedCompany,
+    elapsed: float,
+) -> dict[str, Any]:
+    candidates = [item.as_dict() for item in resolved.candidates]
+    response = {
+        "company_name": company_name,
+        "canonical_name": resolved.canonical_name,
+        "normalized_name": resolved.canonical_key or normalize_company(company_name),
+        "entity": identity.model_dump(mode="json", exclude_none=True),
+        "private_score": None,
+        "scoring_status": "needs_disambiguation",
+        "rating": "Unrated",
+        "color": "#64748B",
+        "summary": "Several organisations match this name. Choose the intended company to generate a score.",
+        "breakdown": [],
+        "category_summary": {},
+        "risk_flags": [],
+        "evidence": {},
+        "candidates": candidates,
+        "company": resolved.as_dict(),
+        "score": {
+            "value": None,
+            "max": 1000,
+            "riskLevel": "Unrated",
+            "confidence": 0,
+            "coverage": 0,
+        },
+        "signals": [],
+        "dataCoverage": {"live": 0, "modelled": 0, "unavailable": 0, "notApplicable": 0},
+        "metadata": {
+            "generatedAt": datetime.now(timezone.utc).isoformat(),
+            "modelVersion": "public-v1",
+            "dataVersion": "public-v1",
+        },
+        "meta": {
+            "cached": False,
+            "computed_at": datetime.now(timezone.utc).isoformat(),
+            "scoring_status": "needs_disambiguation",
+            "scoring_track": "none",
+            "model_version": "public-v1",
+            "confidence": 0,
+            "evidence_coverage": 0,
+            "legal_disclaimer": DISCLAIMER,
+        },
+        "elapsed_seconds": elapsed,
+        "resolution": {
+            "limited_identification": True,
+            "needs_disambiguation": True,
+            "resolution_confidence": resolved.resolution_confidence,
+        },
+    }
+    response["report"] = build_company_report(response)
+    return response
+
+
+def _nested_signals(breakdown: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    nested = []
+    for item in breakdown:
+        nested.append({
+            "name": item.get("signal"),
+            "category": item.get("category"),
+            "value": item.get("display"),
+            "score": item.get("raw_score") if item.get("used_in_score") else None,
+            "weight": item.get("weight"),
+            "status": item.get("availability_status") or item.get("status") or "unavailable",
+            "source": item.get("provider") or item.get("track"),
+            "sourceUrl": item.get("source_url"),
+            "lastUpdated": item.get("retrieved_at") or item.get("observed_at"),
+            "explanation": item.get("insight"),
+        })
+    return nested
+
+
+async def score_company(
+    company_name: str,
+    identity: CompanyIdentity | None = None,
+    refresh: bool = False,
+) -> dict[str, Any]:
     identity = identity or CompanyIdentity(legal_name=company_name)
     company_clean = identity.legal_name
-    normalized_name = normalize_company(company_clean)
-    cache_key = "score:v4:" + identity.cache_key()
     start = time.perf_counter()
+    cache_key = "score:v5:" + identity.cache_key()
 
-    cached = await score_cache.get(cache_key)
-    if cached:
-        response = copy.deepcopy(cached)
-        response["meta"]["cached"] = True
-        response["elapsed_seconds"] = round(time.perf_counter() - start, 3)
-        response["report"] = build_company_report(response)
-        return response
+    if not refresh:
+        cached = await score_cache.get(cache_key)
+        if cached:
+            response = copy.deepcopy(cached)
+            response["meta"]["cached"] = True
+            response["elapsed_seconds"] = round(time.perf_counter() - start, 3)
+            response["report"] = build_company_report(response)
+            return response
 
-    collection = await collect_all(identity)
+    resolved = await resolve_company(identity.legal_name)
+    if resolved.needs_disambiguation:
+        return _disambiguation_response(company_clean, identity, resolved, round(time.perf_counter() - start, 3))
+
+    search_identity = identity
+    if resolved.legal_name and not resolved.limited_identification:
+        search_identity = identity.model_copy(update={"legal_name": resolved.legal_name})
+
+    collection = await collect_all(search_identity, resolved=resolved)
     signals = collection["signals"]
     evidence = collection["evidence"]
-    result = compute_score(signals, model_release_stage=settings.MODEL_RELEASE_STAGE)
+    result = compute_score(
+        signals,
+        model_release_stage=settings.MODEL_RELEASE_STAGE,
+        resolution_confidence=resolved.resolution_confidence,
+    )
     snapshot_hash = evidence_hash(signals, evidence, identity)
     elapsed = round(time.perf_counter() - start, 3)
+    canonical = resolved.canonical_key or normalize_company(company_clean)
+    data_coverage = result["meta"].get("data_coverage") or {
+        "live": 0,
+        "modelled": 0,
+        "unavailable": 0,
+        "notApplicable": 0,
+    }
+    warnings: list[str] = []
+    if collection.get("partial_failure"):
+        warnings.append("One or more data sources could not be retrieved. Report used remaining signals.")
+    if resolved.limited_identification:
+        warnings.append("Limited company identification. Score uses whatever public signals could be collected.")
 
     response = {
-        "company_name": company_clean,
-        "normalized_name": normalized_name,
+        "company_name": resolved.canonical_name or company_clean,
+        "canonical_name": resolved.canonical_name or company_clean,
+        "normalized_name": canonical,
         "entity": identity.model_dump(mode="json", exclude_none=True),
         "private_score": result["private_score"],
         "scoring_status": result["scoring_status"],
@@ -68,6 +174,22 @@ async def score_company(company_name: str, identity: CompanyIdentity | None = No
         "category_summary": result["category_summary"],
         "risk_flags": result["risk_flags"],
         "evidence": evidence,
+        "candidates": [],
+        "company": resolved.as_dict(),
+        "score": {
+            "value": result["private_score"],
+            "max": 1000,
+            "riskLevel": risk_level(result["private_score"], result["scoring_status"]),
+            "confidence": result["meta"]["confidence"],
+            "coverage": result["meta"]["evidence_coverage"],
+        },
+        "signals": _nested_signals(result["breakdown"]),
+        "dataCoverage": data_coverage,
+        "metadata": {
+            "generatedAt": datetime.now(timezone.utc).isoformat(),
+            "modelVersion": result["meta"]["model_version"],
+            "dataVersion": result["meta"]["model_version"],
+        },
         "meta": {
             **result["meta"],
             "cached": False,
@@ -77,8 +199,15 @@ async def score_company(company_name: str, identity: CompanyIdentity | None = No
             "validation_sha256": settings.MODEL_VALIDATION_SHA256,
             "model_approved_by": settings.MODEL_APPROVED_BY,
             "legal_disclaimer": DISCLAIMER,
+            "partial_source_failure": bool(collection.get("partial_failure")),
+            "warnings": warnings,
         },
         "elapsed_seconds": elapsed,
+        "resolution": {
+            "limited_identification": resolved.limited_identification,
+            "needs_disambiguation": False,
+            "resolution_confidence": resolved.resolution_confidence,
+        },
     }
     response["report"] = build_company_report(response)
     await score_cache.set(cache_key, response)
@@ -91,18 +220,29 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
     scoring_status = score_data.get("scoring_status") or score_data.get("meta", {}).get("scoring_status", "rated")
     rating_status = risk_level(score, scoring_status)
     breakdown = score_data.get("breakdown", [])
-    live = [item for item in breakdown if not item.get("is_simulated", True)]
-    unavailable = [item for item in breakdown if item.get("is_simulated", True)]
+    live = [item for item in breakdown if item.get("availability_status") in {"live", "verified"} or (
+        not item.get("is_simulated", True) and item.get("availability_status") not in {"unavailable", "not_applicable", "modelled"}
+    )]
+    unavailable = [item for item in breakdown if item.get("availability_status") == "unavailable" or (
+        item.get("is_simulated", True) and item.get("availability_status") not in {"modelled", "not_applicable", "live"}
+    )]
     scored = [item for item in breakdown if item.get("used_in_score", False)]
-    strongest = sorted(scored, key=lambda item: item.get("raw_score", 0), reverse=True)[:3]
-    weakest = sorted(scored, key=lambda item: item.get("raw_score", 100))[:3]
+    strongest = sorted(scored, key=lambda item: item.get("raw_score") or 0, reverse=True)[:3]
+    weakest = sorted(scored, key=lambda item: item.get("raw_score") if item.get("raw_score") is not None else 100)[:3]
+    company_name = score_data.get("company_name")
 
     if scoring_status == "validation_hold":
-        headline = f"{score_data.get('company_name')} has sufficient evidence, but the model is awaiting validation approval."
-    elif scoring_status != "rated":
-        headline = f"{score_data.get('company_name')} is unrated because required evidence gates were not met."
+        headline = f"{company_name} has sufficient evidence, but the model is awaiting validation approval."
+    elif scoring_status == "needs_disambiguation":
+        headline = f"{company_name} matches more than one organisation. Choose the intended company."
+    elif scoring_status == "limited":
+        headline = f"{company_name} has a {rating_status.lower()} research risk profile with limited data coverage."
+    elif scoring_status not in PUBLISHED_SCORE_STATUSES:
+        headline = f"{company_name} is unrated because no usable signals were available."
+        if scoring_status == "insufficient_data":
+            headline = f"{company_name} is unrated because required evidence gates were not met."
     else:
-        headline = f"{score_data.get('company_name')} has a {rating_status.lower()} research risk profile."
+        headline = f"{company_name} has a {rating_status.lower()} research risk profile."
 
     return {
         "headline": headline,
@@ -136,13 +276,13 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
         },
         "recommended_next_steps": [
             "Confirm the legal entity using its registration number and registered address.",
-            "Review the underlying licensed provider records before material exposure.",
-            "Obtain company consent for current accounting or banking evidence where appropriate.",
+            "Review live source records before material exposure.",
+            "Treat this Public PrivateScore as research context, not a credit-bureau rating.",
         ],
         "limitations": [
-            "Unavailable and context-only inputs are excluded from the score.",
-            "A rating is blocked until entity, coverage, provider-diversity, and model-approval gates pass.",
-            "Provider data rights, retention, and derived-output permissions remain governed by signed contracts.",
+            "Missing and not-applicable sources are excluded from the score; they are never treated as zero.",
+            "Public signals are approximate (keyword jobs, news polarity, Wikipedia identity, top-N awards).",
+            "Licensed credit, cash-flow, and legal evidence stay unavailable until a real gateway is configured.",
         ],
         "disclaimer": DISCLAIMER,
     }

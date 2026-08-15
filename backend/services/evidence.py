@@ -64,30 +64,70 @@ SIGNAL_SPECS: dict[str, dict[str, Any]] = {
         "category": "financial",
         "providers": ["creditsafe"],
         "max_age_days": 120,
+        "track": "licensed",
     },
     "B2B Payment Behavior": {
         "weight": 0.20,
         "category": "financial",
         "providers": ["creditsafe"],
         "max_age_days": 120,
+        "track": "licensed",
     },
     "Cash Flow & Liquidity": {
         "weight": 0.20,
         "category": "financial",
         "providers": ["codat"],
         "max_age_days": 45,
+        "track": "licensed",
     },
     "Business Identity & Standing": {
         "weight": 0.15,
         "category": "legal",
         "providers": ["middesk"],
         "max_age_days": 180,
+        "track": "licensed",
     },
     "Liens, Bankruptcy & Litigation": {
         "weight": 0.15,
         "category": "legal",
         "providers": ["middesk"],
         "max_age_days": 120,
+        "track": "licensed",
+    },
+    "Brand Legitimacy & Web Presence": {
+        "weight": 0.20,
+        "category": "digital",
+        "providers": ["wikipedia"],
+        "max_age_days": 365,
+        "track": "public",
+    },
+    "Company Stability": {
+        "weight": 0.15,
+        "category": "operational",
+        "providers": ["wikipedia"],
+        "max_age_days": 365,
+        "track": "public",
+    },
+    "Job Posting Velocity": {
+        "weight": 0.20,
+        "category": "operational",
+        "providers": ["indeed"],
+        "max_age_days": 14,
+        "track": "public",
+    },
+    "News & Media Sentiment": {
+        "weight": 0.15,
+        "category": "sentiment",
+        "providers": ["duckduckgo", "hackernews"],
+        "max_age_days": 14,
+        "track": "public",
+    },
+    "Government Contract Awards": {
+        "weight": 0.10,
+        "category": "financial",
+        "providers": ["usaspending"],
+        "max_age_days": 365,
+        "track": "public",
     },
 }
 
@@ -144,9 +184,15 @@ class CompanyIdentity(BaseModel):
         return cleaned
 
     def cache_key(self) -> str:
-        payload = self.model_dump(mode="json", exclude_none=True)
-        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-        return hashlib.sha256(encoded).hexdigest()
+        from services.resolver import canonical_key
+
+        key = canonical_key(self.legal_name) or self.legal_name.strip().lower()
+        return ":".join([
+            key,
+            self.country_code,
+            self.registration_number or "",
+            self.postal_code or "",
+        ])
 
 
 class ProviderDescriptor(BaseModel):
@@ -605,7 +651,9 @@ def build_licensed_signals(
                 ],
             })
 
-    for name in SIGNAL_SPECS:
+    for name, spec in SIGNAL_SPECS.items():
+        if spec.get("track", "licensed") != "licensed":
+            continue
         signals.setdefault(name, unavailable_signal(name))
 
     return list(signals.values()), {

@@ -73,6 +73,23 @@ class CompanyReportOut(BaseModel):
     created_at: datetime | None = None
 
 
+class NestedScore(BaseModel):
+    value: int | None = None
+    max: int = 1000
+    riskLevel: str | None = None
+    confidence: float = 0
+    coverage: float = 0
+
+
+class NestedCompany(BaseModel):
+    name: str | None = None
+    canonicalName: str | None = None
+    domain: str | None = None
+    industry: str | None = None
+    companyType: str | None = None
+    location: str | None = None
+
+
 class CompanyScoreRequest(BaseModel):
     legal_name: str = Field(min_length=2, max_length=180)
     country_code: str = Field(default="US", min_length=2, max_length=2)
@@ -80,6 +97,7 @@ class CompanyScoreRequest(BaseModel):
     postal_code: str | None = Field(default=None, max_length=24)
     address: str | None = Field(default=None, max_length=300)
     provider_ids: dict[str, str] = Field(default_factory=dict)
+    refresh: bool = False
 
     @field_validator("provider_ids")
     @classmethod

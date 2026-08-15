@@ -1,53 +1,61 @@
-import { Clock3, Database, ShieldCheck } from 'lucide-react'
+import { Clock3, Database, Gauge } from 'lucide-react'
 
 import MetricCard from '../common/MetricCard'
 import ScoreBand from '../common/ScoreBand'
-import { ratingTone } from '../../lib/score'
+import { displayRating, displayScore, isRated, ratingTone } from '../../lib/score'
 
 const percent = (value) => `${Math.round(Number(value || 0) * 100)}%`
 
 export default function CompanySummary({ result }) {
   const meta = result.meta || {}
-  const rated = result.scoring_status === 'rated'
+  const nested = result.score || {}
+  const rated = isRated(result)
   const tone = ratingTone(result)
+  const scoreValue = displayScore(result, '—')
+  const confidence = nested.confidence ?? meta.confidence
+  const coverage = nested.coverage ?? meta.evidence_coverage
+  const limited = result.scoring_status === 'limited'
 
   return (
     <section className="report-hero">
       <div className="report-score-panel">
         <div className="report-score-figure">
           <div className={`report-score-value tone-${tone}`}>
-            {rated ? result.private_score : '—'}
+            {scoreValue}
             {rated && <small> / 1000</small>}
           </div>
           <div className={`report-score-rating tone-${tone}`}>
-            {rated ? result.rating : 'Unrated'}
+            {displayRating(result)}
           </div>
-          <ScoreBand score={result.private_score} rated={rated} />
+          <ScoreBand score={Number(nested.value ?? result.private_score)} rated={rated} />
         </div>
         <div>
-          <div className="eyebrow">{rated ? 'PrivateScore' : 'Verified coverage check'}</div>
-          <h2>{result.company_name}</h2>
+          <div className="eyebrow">{rated ? (limited ? 'PrivateScore · limited coverage' : 'PrivateScore') : 'Coverage check'}</div>
+          <h2>{result.company?.canonicalName || result.canonical_name || result.company_name}</h2>
           <p>{result.summary}</p>
+          {result.resolution?.limited_identification && (
+            <p className="report-note">Limited company identification. Remaining public signals were still scored.</p>
+          )}
           <div className="report-meta">
-            <span>{meta.scored_signals || 0} of 5 verified inputs</span>
-            <span>{meta.provider_diversity || 0} licensed providers</span>
-            <span>{percent(meta.evidence_coverage)} model coverage</span>
-            <span>{percent(meta.confidence)} evidence confidence</span>
+            <span>{meta.scored_signals || 0} usable inputs</span>
+            <span>{percent(coverage)} data coverage</span>
+            <span>{percent(confidence)} confidence</span>
+            {meta.scoring_track === 'public' && <span>Public track</span>}
           </div>
         </div>
       </div>
       <div className="metric-grid compact">
         <MetricCard
-          icon={ShieldCheck}
-          label="Risk rating"
-          value={result.report?.risk_level || result.rating}
-          detail={rated ? 'Screening profile' : 'Coverage threshold not met'}
+          icon={Gauge}
+          label="Confidence"
+          value={percent(confidence)}
+          detail={limited ? 'Fewer sources than a full run' : 'Separate from the score'}
         />
         <MetricCard
           icon={Database}
-          label="Evidence"
-          value={percent(meta.evidence_coverage)}
-          detail={`${meta.scored_signals || 0} verified inputs`}
+          label="Data coverage"
+          value={percent(coverage)}
+          detail={`${meta.scored_signals || 0} live or modelled inputs`}
         />
         <MetricCard
           icon={Clock3}

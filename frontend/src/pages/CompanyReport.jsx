@@ -1,6 +1,6 @@
 import { BookmarkPlus, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useSearchParams } from '../router'
+import { useNavigate, useParams, useSearchParams } from '../router'
 
 import { getScore } from '../api/companies'
 import { addWatchlist } from '../api/watchlist'
@@ -11,8 +11,11 @@ import CompanySummary from '../components/company/CompanySummary'
 import EvidencePanel from '../components/company/EvidencePanel'
 import SignalCard from '../components/company/SignalCard'
 
+const LOADING_STAGES = ['Resolving company', 'Collecting evidence', 'Scoring signals', 'Generating report']
+
 export default function CompanyReport() {
   const { company } = useParams()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const companyName = decodeURIComponent(company || '')
   const identity = {
@@ -23,20 +26,33 @@ export default function CompanyReport() {
   const requestKey = [companyName, identity.country_code, identity.registration_number, identity.postal_code].join('|')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [stage, setStage] = useState(LOADING_STAGES[0])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const reportRequest = useRef({ company: '', promise: null })
 
   useEffect(() => {
+    if (!loading) return undefined
+    let index = 0
+    setStage(LOADING_STAGES[0])
+    const timer = setInterval(() => {
+      index = Math.min(index + 1, LOADING_STAGES.length - 1)
+      setStage(LOADING_STAGES[index])
+    }, 900)
+    return () => clearInterval(timer)
+  }, [loading])
+
+  useEffect(() => {
     let mounted = true
-    async function load() {
+    async function load(refresh = false) {
       setLoading(true)
       setError('')
       setMessage('')
       try {
-        if (reportRequest.current.company !== requestKey) {
-          reportRequest.current = { company: requestKey, promise: getScore(companyName, identity) }
+        const key = refresh ? `${requestKey}|refresh` : requestKey
+        if (reportRequest.current.company !== key) {
+          reportRequest.current = { company: key, promise: getScore(companyName, identity, refresh) }
         }
         const data = await reportRequest.current.promise
         if (mounted) setResult(data)
@@ -55,8 +71,6 @@ export default function CompanyReport() {
     setSaving(true)
     setMessage('')
     try {
-      // Score, rating, and status are resolved server-side from the stored
-      // report; the client only supplies its own annotations.
       await addWatchlist({
         company_name: result.company_name,
         notes: result.report?.headline,
@@ -70,33 +84,96 @@ export default function CompanyReport() {
     }
   }
 
+  const chooseCandidate = (candidate) => {
+    const params = new URLSearchParams()
+    params.set('country_code', identity.country_code || 'US')
+    if (identity.registration_number) params.set('registration_number', identity.registration_number)
+    if (identity.postal_code) params.set('postal_code', identity.postal_code)
+    navigate(`/reports/${encodeURIComponent(candidate.name || candidate.canonicalName)}?${params.toString()}`)
+  }
+
+  const warnings = result?.meta?.warnings || []
+
   return (
     <div className="page-stack">
       <PageHeader
         eyebrow="Company report"
         title={companyName}
         actions={(
-          <button className="btn btn-primary" onClick={save} disabled={!result || saving}>
-            <BookmarkPlus size={16} />
-            {saving ? 'Saving' : 'Save'}
-          </button>
+          <div className="report-actions">
+            <button
+              className="btn"
+              onClick={() => {
+                reportRequest.current = { company: '', promise: null }
+                setLoading(true)
+                getScore(companyName, identity, true)
+                  .then(setResult)
+                  .catch((err) => setError(err.message || 'Unable to refresh report.'))
+                  .finally(() => setLoading(false))
+              }}
+              disabled={loading}
+            >
+              <RefreshCw size={16} />
+              Refresh
+            </button>
+            <button className="btn btn-primary" onClick={save} disabled={!result || saving}>
+              <BookmarkPlus size={16} />
+              {saving ? 'Saving' : 'Save'}
+            </button>
+          </div>
         )}
       >
-        Evidence-gated financial health rating. Research tool only — not credit, investment, or lending advice.
+        Research PrivateScore from available public and licensed signals. Not credit, investment, or lending advice.
       </PageHeader>
 
-      {loading && <div className="panel loading-panel"><RefreshCw className="spin" size={18} /> Generating company report</div>}
+      {loading && (
+        <div className="panel loading-panel">
+          <RefreshCw className="spin" size={18} />
+          <div>
+            <strong>{stage}</strong>
+            <div className="loading-stages">
+              {LOADING_STAGES.map((item) => (
+                <span key={item} className={item === stage ? 'is-active' : ''}>{item}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       <ErrorNotice message={error} />
       {message && <div className="notice notice-success">{message}</div>}
+      {warnings.map((warning) => (
+        <div key={warning} className="notice">{warning}</div>
+      ))}
 
-      {result && !loading && (
+      {result?.scoring_status === 'needs_disambiguation' && !loading && (
+        <section className="panel">
+          <div className="panel-head">
+            <div><div className="eyebrow">Choose a company</div><h2>Several organisations match this name</h2></div>
+          </div>
+          <div className="candidate-grid">
+            {(result.candidates || []).map((candidate) => (
+              <button
+                key={candidate.url || candidate.name}
+                type="button"
+                className="candidate-card"
+                onClick={() => chooseCandidate(candidate)}
+              >
+                <strong>{candidate.name || candidate.canonicalName}</strong>
+                <span>{candidate.description || candidate.companyType || 'Organisation'}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {result && !loading && result.scoring_status !== 'needs_disambiguation' && (
         <>
           <CompanySummary result={result} />
           <EvidencePanel result={result} />
           <section className="panel">
             <div className="panel-head">
               <div><div className="eyebrow">Report narrative</div><h2>{result.report?.headline}</h2></div>
-              <Badge tone="neutral">Model {result.meta?.model_version}</Badge>
+              <Badge tone="neutral">Model {result.meta?.model_version || result.metadata?.modelVersion}</Badge>
             </div>
             <div className="report-columns">
               <div>

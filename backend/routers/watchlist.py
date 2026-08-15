@@ -8,6 +8,7 @@ from models.company import CompanyReport, SavedCompany
 from models.user import User
 from schemas.company import WatchlistCreate, WatchlistOut, WatchlistUpdate
 from services.reports import normalize_company
+from services.scorer import PUBLISHED_SCORE_STATUSES
 
 router = APIRouter(prefix="/api/watchlist", tags=["Watchlist"])
 
@@ -28,7 +29,7 @@ def latest_verdict(db: Session, user_id: int, normalized_name: str) -> dict:
     )
     if report is None:
         return dict(UNRATED)
-    rated = report.scoring_status == "rated"
+    rated = report.scoring_status in PUBLISHED_SCORE_STATUSES
     return {
         "private_score": report.private_score if rated else None,
         "rating": report.rating or "Unrated",

@@ -3,11 +3,12 @@ import time
 from conftest import strong_password
 
 
-async def fake_score_company(company_name: str, identity=None):
+async def fake_score_company(company_name: str, identity=None, refresh=False):
     return {
         "company_name": company_name,
         "normalized_name": company_name.lower(),
         "private_score": 712,
+        "scoring_status": "rated",
         "rating": "Strong",
         "color": "#2dd4bf",
         "summary": "Synthetic test score.",

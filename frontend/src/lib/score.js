@@ -3,10 +3,13 @@
 // rating string, so both are checked rather than guessing from the number.
 
 const UNRATED_RATINGS = new Set(['Preliminary', 'Validation hold', 'Unrated'])
+const PUBLISHED_STATUSES = new Set(['rated', 'limited'])
 
 export function isRated(item) {
   if (!item) return false
-  if (item.scoring_status) return item.scoring_status === 'rated'
+  if (item.scoring_status) return PUBLISHED_STATUSES.has(item.scoring_status)
+  const nested = Number(item.score?.value)
+  if (Number.isFinite(nested)) return true
   if (item.rating && UNRATED_RATINGS.has(item.rating)) return false
   return Number.isFinite(Number(item.private_score))
 }
@@ -15,13 +18,19 @@ export function isRated(item) {
 // score, so presence is checked rather than truthiness.
 export function displayScore(item, fallback = 'N/A') {
   if (!isRated(item)) return fallback
-  const score = Number(item?.private_score)
+  const score = Number(item?.score?.value ?? item?.private_score)
   return Number.isFinite(score) ? score : fallback
 }
 
 export function displayRating(item, fallback = 'Unrated') {
-  if (!item?.rating) return fallback
-  return UNRATED_RATINGS.has(item.rating) ? 'Unrated' : item.rating
+  if (!isRated(item)) {
+    if (!item?.rating) return fallback
+    return UNRATED_RATINGS.has(item.rating) ? 'Unrated' : fallback
+  }
+  if (item.scoring_status === 'limited') {
+    return item.rating && !UNRATED_RATINGS.has(item.rating) ? item.rating : 'Limited coverage'
+  }
+  return item.rating || fallback
 }
 
 // Rating -> design-system tone. The API also ships a hex color per band, but
@@ -44,7 +53,7 @@ export function ratingTone(item) {
 export function averageScore(items) {
   const scores = (items || [])
     .filter(isRated)
-    .map((item) => Number(item.private_score))
+    .map((item) => Number(item.score?.value ?? item.private_score))
     .filter(Number.isFinite)
   if (!scores.length) return null
   return Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length)

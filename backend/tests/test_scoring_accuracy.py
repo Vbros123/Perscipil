@@ -132,7 +132,7 @@ def test_ambiguous_entity_is_rejected_and_never_scored():
     signals, audit = build_licensed_signals(response(weak), IDENTITY, now=NOW)
     result = compute_score(signals, model_release_stage="validated")
 
-    assert result["scoring_status"] == "insufficient_data"
+    assert result["scoring_status"] == "unrated"
     assert result["meta"]["scored_signals"] == 0
     assert audit["rejected_bundles"] == [{"provider": "creditsafe", "reason": "entity_match_below_threshold"}]
 
@@ -158,7 +158,7 @@ def test_stale_observations_are_excluded():
     result = compute_score(signals, model_release_stage="validated")
 
     assert result["meta"]["scored_signals"] == 0
-    assert result["scoring_status"] == "insufficient_data"
+    assert result["scoring_status"] == "unrated"
 
 
 def test_valid_evidence_is_deterministic_and_held_in_shadow_mode():
@@ -227,7 +227,7 @@ def test_context_and_unavailable_values_do_not_change_score_or_flags():
     # placeholder here would be indistinguishable from a real mid-range score
     # once it reached a database row, an export, or an API consumer.
     assert result["private_score"] is None
-    assert result["scoring_status"] == "insufficient_data"
+    assert result["scoring_status"] == "unrated"
     assert result["meta"]["model_output_score"] is None
     assert result["meta"]["evidence_coverage"] == 0
     assert result["risk_flags"] == []

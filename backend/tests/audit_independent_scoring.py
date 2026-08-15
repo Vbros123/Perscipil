@@ -426,7 +426,7 @@ def t_adversarial():
 def t_gates_and_missing():
     # Zero providers
     r = compute_score([], model_release_stage="validated")
-    check(r["scoring_status"] == "insufficient_data", "empty signals unrated")
+    check(r["scoring_status"] == "unrated", "empty signals unrated")
     check(r["meta"]["evidence_coverage"] == 0, "empty coverage 0")
 
     # Exactly at the 70% coverage threshold (credit .30 + payment .20 + cash .20 = .70)

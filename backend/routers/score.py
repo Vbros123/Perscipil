@@ -51,10 +51,11 @@ async def _run_score(
     identity: CompanyIdentity,
     current_user: User | None,
     db: Session,
+    refresh: bool = False,
 ):
     await _check_rate_limit(request)
     try:
-        response = await score_company(identity.legal_name, identity=identity)
+        response = await score_company(identity.legal_name, identity=identity, refresh=refresh)
     except Exception:
         logger.exception("score.pipeline_failed company=%s", identity.legal_name)
         raise HTTPException(status_code=500, detail="The evidence pipeline could not complete this request.")
@@ -73,6 +74,7 @@ async def get_score(
     country_code: str = Query(default="US", min_length=2, max_length=2),
     registration_number: str | None = Query(default=None, max_length=80),
     postal_code: str | None = Query(default=None, max_length=24),
+    refresh: bool = Query(default=False),
     current_user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
@@ -83,7 +85,7 @@ async def get_score(
         registration_number=registration_number,
         postal_code=postal_code,
     )
-    return await _run_score(request, identity, current_user, db)
+    return await _run_score(request, identity, current_user, db, refresh=refresh)
 
 
 @router.post("/score")
@@ -94,8 +96,8 @@ async def post_score(
     db: Session = Depends(get_db),
 ):
     """Company check using the richer legal-entity identity contract."""
-    identity = _identity_or_422(**payload.model_dump())
-    return await _run_score(request, identity, current_user, db)
+    identity = _identity_or_422(**payload.model_dump(exclude={"refresh"}))
+    return await _run_score(request, identity, current_user, db, refresh=payload.refresh)
 
 
 @router.get("/cache/stats")
@@ -107,23 +109,32 @@ async def cache_stats():
 
 @router.get("/signals")
 async def list_signals():
-    signals = [
-        {
+    signals = []
+    for name, spec in SIGNAL_SPECS.items():
+        track = spec.get("track", "licensed")
+        providers = [
+            PROVIDER_CATALOG[key]["name"] if key in PROVIDER_CATALOG else key
+            for key in spec["providers"]
+        ]
+        if track == "licensed":
+            status = "licensed" if licensed_data_enabled() else "unavailable"
+        else:
+            status = "public"
+        signals.append({
             "name": name,
-            "status": "licensed" if licensed_data_enabled() else "unavailable",
+            "status": status,
+            "track": track,
             "weight": f"{spec['weight'] * 100:.0f}%",
-            "providers": [PROVIDER_CATALOG[key]["name"] for key in spec["providers"]],
+            "providers": providers,
             "max_age_days": spec["max_age_days"],
-        }
-        for name, spec in SIGNAL_SPECS.items()
-    ]
-    signals.extend([
-        {"name": "Job Posting Velocity", "status": "context-only", "weight": "Context", "source": "Indeed"},
-        {"name": "News & Media Sentiment", "status": "context-only", "weight": "Context", "source": "DuckDuckGo + HackerNews"},
-        {"name": "Brand Legitimacy & Web Presence", "status": "context-only", "weight": "Context", "source": "Wikipedia"},
-        {"name": "SEC / Regulatory Filings", "status": "context-only", "weight": "Context", "source": "SEC EDGAR"},
-        {"name": "Government Contract Awards", "status": "context-only", "weight": "Context", "source": "USASpending.gov"},
-    ])
+        })
+    signals.append({
+        "name": "SEC / Regulatory Filings",
+        "status": "context-only",
+        "track": "public",
+        "weight": "Context",
+        "source": "SEC EDGAR",
+    })
     return {"signals": signals, "provider_catalog": list(PROVIDER_CATALOG.values())}
 
 

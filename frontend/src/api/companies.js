@@ -1,6 +1,6 @@
 import { apiRequest } from './client'
 
-export function getScore(company, identity = {}) {
+export function getScore(company, identity = {}, refresh = false) {
   return apiRequest('/api/score', {
     method: 'POST',
     body: JSON.stringify({
@@ -9,6 +9,7 @@ export function getScore(company, identity = {}) {
       ...(identity.registration_number ? { registration_number: identity.registration_number } : {}),
       ...(identity.postal_code ? { postal_code: identity.postal_code } : {}),
       ...(identity.address ? { address: identity.address } : {}),
+      ...(refresh ? { refresh: true } : {}),
     }),
   })
 }

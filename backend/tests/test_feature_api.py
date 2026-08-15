@@ -3,7 +3,7 @@ import time
 from conftest import strong_password
 
 
-async def fake_score_company(company_name: str, identity=None):
+async def fake_score_company(company_name: str, identity=None, refresh=False):
     normalized = company_name.strip().lower()
     score = 760 if normalized.startswith("alpha") else 640
     return {
@@ -47,7 +47,7 @@ def test_full_authenticated_workspace_flow(api, monkeypatch):
     assert api.get("/api/health").json()["status"] == "ok"
     assert api.get("/api/metrics").status_code == 404
     assert api.get("/api/compliance/status").status_code == 200
-    assert len(api.get("/api/signals").json()["signals"]) == 10
+    assert len(api.get("/api/signals").json()["signals"]) == 11
     assert len(api.get("/api/providers").json()["providers"]) == 3
     assert api.get("/api/cache/stats").status_code == 200
 

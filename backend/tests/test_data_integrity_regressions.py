@@ -128,7 +128,7 @@ def test_unrated_company_publishes_no_number():
     result = compute_score([], model_release_stage="validated")
 
     assert result["private_score"] is None
-    assert result["scoring_status"] == "insufficient_data"
+    assert result["scoring_status"] == "unrated"
     assert risk_level(result["private_score"], result["scoring_status"]) == "Unrated"
 
 

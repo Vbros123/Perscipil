@@ -9,14 +9,22 @@ const toneForScore = (score) => {
   return 'danger'
 }
 
+const STATUS_BADGES = {
+  live: { label: 'LIVE', tone: 'positive' },
+  verified: { label: 'LIVE', tone: 'positive' },
+  modelled: { label: 'MODELLED', tone: 'accent' },
+  unavailable: { label: 'UNAVAILABLE', tone: 'warning' },
+  not_applicable: { label: 'NOT APPLICABLE', tone: 'neutral' },
+}
+
 export default function SignalCard({ signal }) {
   const rawScore = Number(signal?.raw_score)
   const hasScore = signal?.raw_score !== null && signal?.raw_score !== undefined && Number.isFinite(rawScore)
   const score = hasScore ? Math.round(rawScore) : null
   const tone = toneForScore(score ?? 0)
   const confidence = Number(signal?.entity_match_confidence)
-  const status = signal.is_simulated ? 'Unavailable' : (signal.used_in_score ? 'Verified input' : 'Context only')
-  const statusTone = signal.is_simulated ? 'warning' : (signal.used_in_score ? 'positive' : 'neutral')
+  const statusKey = signal.availability_status || signal.status || (signal.is_simulated ? 'unavailable' : 'live')
+  const badge = STATUS_BADGES[statusKey] || { label: String(statusKey).replaceAll('_', ' ').toUpperCase(), tone: 'neutral' }
   const showScore = Boolean(signal.used_in_score) && hasScore
 
   return (
@@ -26,7 +34,7 @@ export default function SignalCard({ signal }) {
           <h3>{signal.signal}</h3>
           <p>{signal.provider || signal.category_label || signal.category}</p>
         </div>
-        <Badge tone={statusTone}>{status}</Badge>
+        <Badge tone={badge.tone}>{badge.label}</Badge>
       </div>
       <div className="signal-score">
         <span>{signal.display}</span>
@@ -38,9 +46,9 @@ export default function SignalCard({ signal }) {
       <p className="signal-copy">{signal.insight}</p>
       {showScore && (
         <div className="signal-provenance">
-          <span>Observed {signal.freshness_days ?? '—'}d ago</span>
+          <span>Observed {signal.freshness_days ?? signal.retrieved_at ?? '—'}</span>
           <span>Entity match {Number.isFinite(confidence) ? `${Math.round(confidence * 100)}%` : 'not reported'}</span>
-          <span>Transform {signal.transform_version || '—'}</span>
+          <span>Transform {signal.transform_version || signal.track || '—'}</span>
         </div>
       )}
       <footer className="signal-foot">
