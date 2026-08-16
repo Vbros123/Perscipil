@@ -285,11 +285,21 @@ class ResolvedCompany:
     founded_year: int | None = None
     needs_disambiguation: bool = False
     limited_identification: bool = False
+    gleif: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
+        gleif = self.gleif or {}
+        selected = gleif.get("selected") if isinstance(gleif.get("selected"), dict) else gleif
         return {
             "name": self.legal_name,
             "canonicalName": self.canonical_name,
+            "legalName": selected.get("legalName") or self.legal_name,
+            "lei": self.identifiers.get("lei") or selected.get("lei"),
+            "entityStatus": selected.get("entityStatus"),
+            "jurisdiction": selected.get("jurisdiction"),
+            "legalForm": selected.get("legalForm"),
+            "registeredAddress": selected.get("registeredAddress"),
+            "parents": selected.get("parents") or [],
             "domain": self.domain,
             "industry": self.industry,
             "companyType": self.company_type,
@@ -298,6 +308,7 @@ class ResolvedCompany:
             "aliases": self.aliases,
             "identifiers": self.identifiers,
             "resolutionConfidence": self.resolution_confidence,
+            "gleif": gleif or None,
         }
 
     def resolution_payload(self) -> dict[str, Any]:
@@ -320,6 +331,7 @@ class ResolvedCompany:
             "limited_identification": self.limited_identification,
             "needs_disambiguation": self.needs_disambiguation,
             "resolution_confidence": self.resolution_confidence,
+            "gleif": self.gleif,
         }
 
 
@@ -461,7 +473,44 @@ def _discovery_related(query: str, title: str) -> bool:
     return q == t or t.startswith(q + " ") or q.startswith(t + " ")
 
 
-async def resolve_company(name: str, selected_title: str | None = None) -> ResolvedCompany:
+def _apply_gleif(resolved: ResolvedCompany, lookup) -> ResolvedCompany:
+    """Attach GLEIF identity. A missing LEI never proves the company does not exist."""
+    if lookup is None:
+        return resolved
+    payload = lookup.as_dict()
+    resolved.gleif = payload
+    selected = lookup.selected
+    if selected is None:
+        return resolved
+    resolved.identifiers = {**resolved.identifiers, "lei": selected.lei}
+    aliases = list(resolved.aliases)
+    if selected.legal_name and selected.legal_name not in aliases:
+        aliases.append(selected.legal_name)
+    resolved.aliases = aliases
+    resolved.legal_name = selected.legal_name or resolved.legal_name
+    if selected.registered_address and not resolved.headquarters:
+        resolved.headquarters = selected.registered_address
+    if resolved.resolution_status != "resolved" and lookup.status == "live":
+        resolved.resolution_status = "resolved"
+        resolved.canonical_name = selected.legal_name
+        resolved.canonical_key = canonical_key(selected.legal_name) or resolved.canonical_key
+        resolved.entity_type = "company" if resolved.entity_type in {"unknown", ""} else resolved.entity_type
+        resolved.limited_identification = False
+        resolved.needs_disambiguation = False
+        resolved.resolution_confidence = max(resolved.resolution_confidence, selected.match_score)
+        logger.info(
+            "[Resolver] Query=%r gleif_lei=%s legal_name=%r status=resolved_from_gleif",
+            resolved.query_name, selected.lei, selected.legal_name,
+        )
+    elif resolved.resolution_status == "resolved":
+        logger.info(
+            "[Resolver] Query=%r gleif_lei=%s legal_name=%r status=gleif_attached",
+            resolved.query_name, selected.lei, selected.legal_name,
+        )
+    return resolved
+
+
+async def resolve_company(name: str, selected_title: str | None = None, country_code: str | None = None) -> ResolvedCompany:
     """Resolve a typed name to a canonical company before collectors run."""
     key = canonical_key(name)
     if not key:
@@ -469,6 +518,22 @@ async def resolve_company(name: str, selected_title: str | None = None) -> Resol
         logger.info("[Resolver] Query=%r status=unresolved reason=empty_key", name)
         return unresolved
 
+    resolved = await _resolve_from_public_sources(name, key, selected_title)
+    try:
+        from services.providers.gleif import lookup_gleif
+
+        gleif = await lookup_gleif(selected_title or name, country_code)
+        if gleif.selected is None and resolved.canonical_name and resolved.canonical_name.lower() != name.lower():
+            alias = await lookup_gleif(resolved.canonical_name, country_code)
+            if alias.selected is not None:
+                gleif = alias
+        resolved = _apply_gleif(resolved, gleif)
+    except Exception as exc:
+        logger.warning("[Resolver] Query=%r gleif_error=%s", name, type(exc).__name__)
+    return resolved
+
+
+async def _resolve_from_public_sources(name: str, key: str, selected_title: str | None = None) -> ResolvedCompany:
     try:
         async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
             if selected_title:

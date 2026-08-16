@@ -166,7 +166,7 @@ async def score_company(
     company_clean = identity.legal_name
     start = time.perf_counter()
     selected = (selected_title or "").strip() or None
-    cache_key = "score:v7:" + identity.cache_key() + (f":sel:{canonical_key(selected)}" if selected else "")
+    cache_key = "score:v8:" + identity.cache_key() + (f":sel:{canonical_key(selected)}" if selected else "")
 
     if not refresh:
         cached = await score_cache.get(cache_key)
@@ -177,7 +177,11 @@ async def score_company(
             response["report"] = build_company_report(response)
             return response
 
-    resolved = await resolve_company(identity.legal_name, selected_title=selected)
+    resolved = await resolve_company(
+        identity.legal_name,
+        selected_title=selected,
+        country_code=identity.country_code,
+    )
     if resolved.needs_disambiguation or resolved.resolution_status == "ambiguous":
         logger.info("[Report] Query=%r status=ambiguous candidates=%s", company_clean, len(resolved.candidates))
         return _disambiguation_response(company_clean, identity, resolved, round(time.perf_counter() - start, 3))

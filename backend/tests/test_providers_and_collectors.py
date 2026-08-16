@@ -77,6 +77,7 @@ def test_all_collectors_failed_report_is_honest(monkeypatch):
     monkeypatch.setattr("services.collectors.collect_news_sentiment", boom)
     monkeypatch.setattr("services.collectors.collect_sec_edgar", boom)
     monkeypatch.setattr("services.collectors.collect_usa_spending", boom)
+    monkeypatch.setattr("services.collectors.collect_gleif", boom)
     monkeypatch.setattr("services.collectors.collect_licensed_signals", no_licensed)
 
     collection = asyncio.run(collect_all(CompanyIdentity(legal_name="Unknown Startup LLC")))
@@ -120,6 +121,9 @@ def test_partial_collector_timeout_does_not_stop_others(monkeypatch):
     async def awards(_name, resolved=None):
         return CollectorResult(source="usaspending", status="not_applicable", signals=[])
 
+    async def gleif(_name, resolved=None):
+        return CollectorResult(source="gleif", status="not_applicable", signals=[])
+
     async def no_licensed(_identity):
         return [], {"gateway_enabled": False}
 
@@ -128,6 +132,7 @@ def test_partial_collector_timeout_does_not_stop_others(monkeypatch):
     monkeypatch.setattr("services.collectors.collect_news_sentiment", news)
     monkeypatch.setattr("services.collectors.collect_sec_edgar", sec)
     monkeypatch.setattr("services.collectors.collect_usa_spending", awards)
+    monkeypatch.setattr("services.collectors.collect_gleif", gleif)
     monkeypatch.setattr("services.collectors.collect_licensed_signals", no_licensed)
 
     collection = asyncio.run(collect_all(CompanyIdentity(legal_name="Example Co")))
@@ -171,7 +176,7 @@ def test_score_company_all_timeouts_stays_unrated(monkeypatch):
     async def no_licensed(_identity):
         return [], {"gateway_enabled": False}
 
-    async def fake_resolve(name, selected_title=None):
+    async def fake_resolve(name, selected_title=None, country_code=None):
         from services.resolver import ResolvedCompany
         return ResolvedCompany(
             query_name=name,
@@ -189,14 +194,15 @@ def test_score_company_all_timeouts_stays_unrated(monkeypatch):
     monkeypatch.setattr("services.collectors.collect_news_sentiment", boom)
     monkeypatch.setattr("services.collectors.collect_sec_edgar", boom)
     monkeypatch.setattr("services.collectors.collect_usa_spending", boom)
+    monkeypatch.setattr("services.collectors.collect_gleif", boom)
     monkeypatch.setattr("services.collectors.collect_licensed_signals", no_licensed)
 
     result = asyncio.run(score_company("Unknown Co LLC", refresh=True))
     assert result["private_score"] is None
     assert result["scoring_status"] == "unrated"
     assert result["rating"] == "Insufficient public evidence"
-    assert result["sourceAttempts"]["attempted"] == 5
-    assert result["sourceAttempts"]["unavailable"] == 5
+    assert result["sourceAttempts"]["attempted"] == 6
+    assert result["sourceAttempts"]["unavailable"] == 6
     assert result["dataSources"]
     licensed = next(item for item in result["dataSources"] if item["key"] == "licensed")
     assert licensed["status"] == "unavailable"

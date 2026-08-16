@@ -58,10 +58,11 @@ class CollectorResult:
             "news": "DuckDuckGo / Hacker News",
             "jobs": "Indeed",
             "usaspending": "USASpending",
+            "gleif": "GLEIF",
         }
         quality = self.evidence_quality
         if quality is None:
-            if self.status == "live" and self.source in {"sec", "usaspending"}:
+            if self.status == "live" and self.source in {"sec", "usaspending", "gleif"}:
                 quality = "high"
             elif self.status == "live":
                 quality = "low"
@@ -193,9 +194,11 @@ def _result(
     error_code: str | None = None,
 ) -> CollectorResult:
     statuses = [item.get("availability_status") or "unavailable" for item in signals]
-    if any(status in {"live", "modelled"} and item.get("is_scored") for status, item in zip(statuses, signals)):
-        overall = "live" if any(status == "live" for status in statuses) else "modelled"
-    elif all(status == "not_applicable" for status in statuses):
+    if any(status == "live" for status in statuses):
+        overall = "live"
+    elif any(status == "modelled" for status in statuses):
+        overall = "modelled"
+    elif statuses and all(status == "not_applicable" for status in statuses):
         overall = "not_applicable"
     else:
         overall = "unavailable"
@@ -686,6 +689,7 @@ FALLBACK_SIGNALS = {
     "news": [("News & Media Sentiment", "📰", "sentiment", "https://newsapi.org")],
     "jobs": [("Job Posting Velocity", "💼", "operational", "https://www.indeed.com")],
     "usaspending": [("Government Contract Awards", "🏛️", "financial", "https://www.usaspending.gov")],
+    "gleif": [("Legal Entity Identity", "🪪", "legal", "https://api.gleif.org/api/v1")],
 }
 
 
@@ -703,6 +707,98 @@ def _crash_result(source: str, error: BaseException) -> CollectorResult:
     )
 
 
+async def collect_gleif(name: str, resolved=None) -> CollectorResult:
+    """GLEIF legal-entity identity. Context only — never a PrivateScore input."""
+    source_url = "https://www.gleif.org"
+    try:
+        selected = None
+        error_code = None
+        payload = getattr(resolved, "gleif", None) if resolved is not None else None
+        if isinstance(payload, dict) and payload.get("selected"):
+            selected = payload["selected"]
+            error_code = payload.get("errorCode")
+        else:
+            from services.providers.gleif import lookup_gleif
+
+            country = None
+            if resolved is not None:
+                country = (getattr(resolved, "identifiers", {}) or {}).get("country")
+            lookup = await lookup_gleif(name, country)
+            if lookup.error_code:
+                error_code = lookup.error_code
+            if lookup.selected:
+                selected = lookup.selected.as_identity_dict()
+        if selected and selected.get("lei"):
+            lei = selected["lei"]
+            legal_name = selected.get("legalName") or name
+            status = selected.get("entityStatus") or "unknown"
+            insight = (
+                f"GLEIF reports LEI {lei} for {legal_name} "
+                f"(entity status {status}"
+                f"{', jurisdiction ' + selected['jurisdiction'] if selected.get('jurisdiction') else ''}). "
+                "This is legal-entity identification, not a financial-health observation, "
+                "and is excluded from PrivateScore."
+            )
+            return _result("gleif", [_public_signal(
+                name="Legal Entity Identity",
+                icon="🪪",
+                category="legal",
+                display=f"LEI {lei} · {legal_name} · {status}",
+                status="live",
+                source_url=selected.get("sourceUrl") or f"https://api.gleif.org/api/v1/lei-records/{lei}",
+                insight=insight,
+                extra={
+                    "is_scored": False,
+                    "is_simulated": False,
+                    "lei": lei,
+                    "legalName": legal_name,
+                    "entityStatus": selected.get("entityStatus"),
+                    "jurisdiction": selected.get("jurisdiction"),
+                    "legalForm": selected.get("legalForm"),
+                    "registeredAddress": selected.get("registeredAddress"),
+                    "parents": selected.get("parents") or [],
+                    "retrievedAt": selected.get("retrievedAt"),
+                },
+                evidence_quality="high",
+            )], error_code=error_code)
+        if error_code:
+            return _result(
+                "gleif",
+                [_unavailable_signal(
+                    "Legal Entity Identity",
+                    "🪪",
+                    "legal",
+                    source_url,
+                    "GLEIF could not be reached. Missing LEI data is not a negative financial signal.",
+                )],
+                error=error_code,
+                error_code=error_code,
+            )
+        return _result("gleif", [_not_applicable_signal(
+            "Legal Entity Identity",
+            "🪪",
+            "legal",
+            source_url,
+            "Not applicable — no matching LEI",
+            "No LEI was found for this name. Absence of an LEI is not evidence that the "
+            "company does not exist and is not treated as negative financial evidence.",
+        )])
+    except Exception as exc:
+        code = _error_code(exc)
+        return _result(
+            "gleif",
+            [_unavailable_signal(
+                "Legal Entity Identity",
+                "🪪",
+                "legal",
+                source_url,
+                "GLEIF could not be retrieved. Missing LEI data is not a negative financial signal.",
+            )],
+            error=code,
+            error_code=code,
+        )
+
+
 async def collect_all(identity: CompanyIdentity | str, resolved=None) -> dict:
     """Run public collectors and the licensed evidence client concurrently."""
     if isinstance(identity, str):
@@ -715,6 +811,7 @@ async def collect_all(identity: CompanyIdentity | str, resolved=None) -> dict:
         ("news", collect_news_sentiment(company_name, resolved)),
         ("jobs", collect_job_postings(company_name, resolved)),
         ("usaspending", collect_usa_spending(company_name, resolved)),
+        ("gleif", collect_gleif(company_name, resolved)),
     ]
     licensed_task = asyncio.create_task(collect_licensed_signals(identity))
     gathered = await asyncio.gather(*(task for _, task in named), return_exceptions=True)

@@ -10,6 +10,7 @@ from services.providers.licensed import GatewayLicensedProvider
 settings = get_settings()
 
 PUBLIC_PROVIDERS = (
+    {"key": "gleif", "name": "GLEIF", "track": "public", "quality": "high", "scored": False},
     {"key": "sec", "name": "SEC EDGAR", "track": "public", "quality": "high", "scored": False},
     {"key": "wikipedia", "name": "Wikipedia", "track": "public", "quality": "low", "scored": True},
     {"key": "news", "name": "DuckDuckGo / Hacker News", "track": "public", "quality": "low", "scored": True},

@@ -158,11 +158,17 @@ def test_collector_crash_still_builds_a_report(monkeypatch):
     async def no_licensed(_identity):
         return [], {"gateway_enabled": False}
 
+    async def gleif(_name, resolved=None):
+        return CollectorResult(source="gleif", status="not_applicable", signals=[
+            _public("Legal Entity Identity", None, status="not_applicable", category="legal"),
+        ])
+
     monkeypatch.setattr("services.collectors.collect_wikipedia", boom)
     monkeypatch.setattr("services.collectors.collect_job_postings", jobs)
     monkeypatch.setattr("services.collectors.collect_news_sentiment", news)
     monkeypatch.setattr("services.collectors.collect_sec_edgar", sec)
     monkeypatch.setattr("services.collectors.collect_usa_spending", awards)
+    monkeypatch.setattr("services.collectors.collect_gleif", gleif)
     monkeypatch.setattr("services.collectors.collect_licensed_signals", no_licensed)
 
     collection = asyncio.run(collect_all(CompanyIdentity(legal_name="Example Manufacturing")))

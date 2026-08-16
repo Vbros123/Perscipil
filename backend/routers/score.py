@@ -144,6 +144,13 @@ async def list_signals():
         "weight": "Context",
         "source": "SEC EDGAR",
     })
+    signals.append({
+        "name": "Legal Entity Identity",
+        "status": "context-only",
+        "track": "public",
+        "weight": "Context",
+        "source": "GLEIF",
+    })
     return {"signals": signals, "provider_catalog": list(PROVIDER_CATALOG.values())}
 
 

@@ -83,6 +83,9 @@ export default function CompanySummary({ result }) {
           <div className="eyebrow">{rated ? (limited ? 'PrivateScore · limited evidence' : 'PrivateScore') : 'Coverage check'}</div>
           <h2>{result.company?.canonicalName || result.canonical_name || result.company_name}</h2>
           <p className="report-entity-type">{entityLabel(result.company?.entityType || result.entity?.entity_type)}</p>
+          {result.company?.lei && (
+            <p className="report-entity-type">LEI {result.company.lei}{result.company.entityStatus ? ` · ${result.company.entityStatus}` : ''}{result.company.jurisdiction ? ` · ${result.company.jurisdiction}` : ''}</p>
+          )}
           <p>{result.summary}</p>
           {result.resolution?.limited_identification && (
             <p className="report-note">Limited company identification. Remaining public signals were still scored.</p>

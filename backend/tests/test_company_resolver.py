@@ -149,6 +149,12 @@ def _patch_client(monkeypatch, summaries, search_titles):
 
     monkeypatch.setattr("services.resolver.httpx.AsyncClient", _Factory)
 
+    async def no_gleif(query, country_code=None):
+        from services.providers.gleif import GleifLookup
+        return GleifLookup(status="unavailable")
+
+    monkeypatch.setattr("services.providers.gleif.lookup_gleif", no_gleif)
+
 
 def test_cargill_auto_selects_company_over_family(monkeypatch):
     summaries = {

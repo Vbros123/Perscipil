@@ -221,6 +221,7 @@ PrivateLens currently operates primarily on public and modelled signals.
 
 | Source | Quality when live | Notes |
 |---|---|---|
+| GLEIF | High | Free public LEI identity. No API key. Context only — never a PrivateScore input. Missing LEI is not negative. |
 | SEC EDGAR | High | Context / not applicable for most private companies |
 | USASpending | High | US federal awards only; a floor across retrieved pages |
 | Wikipedia | Low | Identity and founding-year context |
@@ -256,7 +257,7 @@ A licensed numeric rating still requires at least 70% licensed-weight coverage, 
 ```text
 Company
    |
-   +-- public collectors (SEC, Wikipedia, jobs, news, USASpending)
+   +-- public collectors (GLEIF, SEC, Wikipedia, jobs, news, USASpending)
    +-- LicensedDataProvider (unavailable unless configured)
    |
 Signal aggregator (standardized Signal objects)
@@ -350,6 +351,7 @@ curl -H "Authorization: Bearer $METRICS_TOKEN" https://privatelens.onrender.com/
 ## Known Limitations
 
 - Production runs `DATA_MODE=public`. There is no live licensed credit, cash-flow, or legal feed.
+- GLEIF is a free public identity source and requires no API key. A missing LEI is not evidence a company does not exist and does not change PrivateScore.
 - Wikipedia, Indeed, and DuckDuckGo/Hacker News are coarse public collectors and are labelled low quality.
 - Job boards and search engines may block or rate-limit automated requests.
 - If every public collector times out, the result is Insufficient public evidence — not a guessed score.
