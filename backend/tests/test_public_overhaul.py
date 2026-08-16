@@ -20,6 +20,16 @@ def _signal(name, raw, category, status="live", scored=True, quality="low", scop
     }
 
 
+def test_licensed_unavailable_copy_does_not_name_vendors():
+    from services.evidence import unavailable_signal
+
+    signal = unavailable_signal("Commercial Credit Risk")
+    assert "Creditsafe" not in signal["insight"]
+    assert "Codat" not in signal["insight"]
+    assert "Middesk" not in signal["insight"]
+    assert "not currently connected" in signal["insight"]
+
+
 def test_jobs_are_optional_and_not_scraped():
     result = asyncio.run(collect_job_postings("Cargill"))
     assert result.optional is True
@@ -54,6 +64,38 @@ def test_sec_company_facts_can_score_and_census_cannot():
     assert "legal" not in result["category_summary"]
     assert result["category_summary"]["financial"]["label"] == "Financial Evidence"
     assert result["category_summary"]["industry"]["score"] is None
+
+
+def test_usaspending_match_tiers():
+    from services.collectors import _usaspending_match_tier
+
+    assert _usaspending_match_tier("CARGILL, INCORPORATED", ["CARGILL, INCORPORATED"], True) == "Exact"
+    assert _usaspending_match_tier("Cargill Inc", ["CARGILL, INCORPORATED"], True) == "Exact"
+    assert _usaspending_match_tier("Cargill Inc", ["CARGILL, INCORPORATED"], False) == "Strong"
+    assert _usaspending_match_tier("Cargill Foods", ["Cargill"], False) == "Name Match"
+    assert _usaspending_match_tier("Cargill Foodservice", ["Microsoft"], True) == "Unresolved"
+
+
+def test_sec_outranks_identity_only_public_context():
+    identity_only = compute_score([
+        _signal("Legal Entity Identity", None, "identity", scored=False, quality="high"),
+        _signal("Brand Legitimacy & Web Presence", 90, "identity", quality="low"),
+        _signal("Industry Context", 90, "industry", scored=False, quality="medium", scope="industry"),
+    ], model_release_stage="shadow")
+    with_sec = compute_score([
+        _signal("SEC Financial Evidence", 82, "financial", quality="high"),
+        _signal("Company Stability", 66, "operational", quality="medium"),
+    ], model_release_stage="shadow")
+    assert with_sec["private_score"] > identity_only["private_score"]
+
+
+def test_low_confidence_does_not_use_strong_label():
+    result = compute_score([
+        _signal("Brand Legitimacy & Web Presence", 99, "identity", quality="low"),
+        _signal("News & Media Sentiment", 99, "sentiment", quality="low"),
+    ], model_release_stage="shadow")
+    if result["meta"]["confidence"] < 0.30:
+        assert result["rating"] not in {"Exceptional", "Strong"}
 
 
 def test_categories_use_the_new_labels():

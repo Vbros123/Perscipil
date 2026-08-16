@@ -513,6 +513,12 @@ def compute_score(
         elif resolution_confidence is not None and resolution_confidence < 75:
             public_confidence *= 0.80
         evidence_confidence = max(0.0, min(1.0, public_confidence))
+        if evidence_confidence < 0.30 and rating in {"Exceptional", "Strong"}:
+            rating = "Adequate"
+            summary = (
+                f"{summary} The Strong/Exceptional label is withheld because confidence is "
+                f"{evidence_confidence:.0%}; score, confidence, and coverage are separate measures."
+            )
         model_version = "public-v2" if public_track else "public-v2+licensed-v4"
     elif licensed_usable_weight > 0:
         scoring_track = "licensed"

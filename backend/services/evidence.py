@@ -616,7 +616,10 @@ def unavailable_signal(name: str) -> dict[str, Any]:
         "is_scored": False,
         "availability_status": "unavailable",
         "source_url": PROVIDER_CATALOG[spec["providers"][0]]["official_docs"],
-        "insight": f"Requires entity-resolved evidence from {' or '.join(provider_names)}. No company value was inferred.",
+        "insight": (
+            "Licensed credit, payment, cash-flow, and legal datasets are not currently connected. "
+            "No company value was inferred."
+        ),
         "expected_providers": provider_names,
         "evidence_quality": "unavailable",
     }

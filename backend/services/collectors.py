@@ -38,7 +38,7 @@ _normalize_entity_name = canonical_key
 
 SOURCE_META = {
     "gleif": {"label": "GLEIF", "group": "identity", "groupLabel": "IDENTITY & REGISTRY"},
-    "sec": {"label": "SEC EDGAR", "group": "financial_regulatory", "groupLabel": "FINANCIAL / REGULATORY"},
+    "sec": {"label": "SEC EDGAR", "group": "financial_regulatory", "groupLabel": "FINANCIAL & REGULATORY"},
     "usaspending": {"label": "USASpending", "group": "government", "groupLabel": "GOVERNMENT ACTIVITY"},
     "census": {"label": "Census", "group": "industry", "groupLabel": "INDUSTRY CONTEXT"},
     "wikipedia": {"label": "Wikipedia", "group": "public_signals", "groupLabel": "PUBLIC SIGNALS"},
@@ -404,17 +404,33 @@ async def collect_sec_edgar(name: str, resolved=None) -> CollectorResult:
             f"net income {_money(metrics.get('netIncome'))}" if metrics.get("netIncome") is not None else None,
         ]
         leverage = metrics.get("debtToEquity")
+        fact_bits = []
+        for key, label in (
+            ("revenue", "Revenue"),
+            ("assets", "Assets"),
+            ("liabilities", "Liabilities"),
+            ("cash", "Cash"),
+            ("equity", "Equity"),
+            ("netIncome", "Net income"),
+            ("operatingIncome", "Operating income"),
+        ):
+            fact = (metrics.get("facts") or {}).get(key)
+            if not fact:
+                continue
+            fact_bits.append(
+                f"{label} {_money(fact.get('value'))} {fact.get('unit') or 'USD'} "
+                f"({fact.get('period')} FY{fact.get('fiscalYear') or '?'} "
+                f"{fact.get('form') or ''} ended {fact.get('periodEnd') or 'n/a'}"
+                f"{', filed ' + str(fact['filed']) if fact.get('filed') else ''})"
+            )
         insight = (
             f"SEC registrant {entity.title or name} (CIK {entity.cik}"
-            f"{', ticker ' + ticker if ticker else ''}) "
-            f"reported revenue {_money(metrics.get('revenue'))}, assets {_money(metrics.get('assets'))}, "
-            f"liabilities {_money(metrics.get('liabilities'))}, cash {_money(metrics.get('cash'))}, "
-            f"equity {_money(metrics.get('equity'))}, net income {_money(metrics.get('netIncome'))}, "
-            f"and operating income {_money(metrics.get('operatingIncome'))} "
-            f"for FY {metrics.get('revenueFy') or 'latest available'}. "
-            f"Revenue growth {_pct(metrics.get('revenueGrowth'))}; "
+            f"{', ticker ' + ticker if ticker else ''}). "
+            + ("; ".join(fact_bits) + ". " if fact_bits else "")
+            + f"Annual revenue growth {_pct(metrics.get('revenueGrowth'))}; "
             f"operating margin {_pct(metrics.get('operatingMargin'))}"
             f"{f'; debt/equity {leverage:.2f}' if leverage is not None else ''}. "
+            "Ratios use annual facts from the same fiscal year only. "
             f"{len(filings)} recent filing(s) are listed on the submissions feed. "
             "These are company-specific XBRL facts, not industry estimates."
         )
@@ -718,6 +734,20 @@ def _award_matches_recipient(recipient_name: str, accepted: list[str]) -> bool:
     return any(names_match(recipient_name, item) or canonical_key(recipient_name) == canonical_key(item) for item in accepted)
 
 
+def _usaspending_match_tier(recipient_name: str, accepted: list[str], unique_recipient: bool) -> str:
+    if not recipient_name or not accepted:
+        return "Unresolved"
+    exact = any(canonical_key(recipient_name) == canonical_key(item) for item in accepted)
+    strong = any(names_match(recipient_name, item) for item in accepted)
+    if exact and unique_recipient:
+        return "Exact"
+    if exact or (strong and unique_recipient):
+        return "Strong"
+    if strong:
+        return "Name Match"
+    return "Unresolved"
+
+
 async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
     """USASpending.gov — federal awards for a matched recipient, not a similar name."""
     source_url = f"https://www.usaspending.gov/search/?query={name.replace(' ', '%20')}"
@@ -786,7 +816,7 @@ async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
             count = len(verified)
             unverified_count = len(results) - count
             truncated = bool(data.get("page_metadata", {}).get("hasNext"))
-            exact_match = bool(recipient) and not recipient.get("ambiguous")
+            exact_unique = bool(recipient) and not recipient.get("ambiguous")
             if count == 0:
                 return _result(
                     "usaspending",
@@ -804,7 +834,7 @@ async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
                         "a federal contractor.",
                     )],
                     coverage="n/a",
-                    entity_match="No recipient match",
+                    entity_match="Unresolved",
                     source_url=source_url,
                     evidence_quality="not_applicable",
                 )
@@ -818,8 +848,10 @@ async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
                 if duns:
                     identifiers["duns"] = str(duns)
                 resolved.identifiers = identifiers
-            quality = "high" if exact_match else "medium"
-            match_label = "Entity matched" if exact_match else "Name-matched awards; confidence lowered"
+            sample_name = verified[0].get("Recipient Name") or search_name
+            match_label = _usaspending_match_tier(sample_name, accepted, exact_unique)
+            quality = {"Exact": "high", "Strong": "high", "Name Match": "medium"}.get(match_label, "low")
+            exact_match = match_label in {"Exact", "Strong"}
             return _result(
                 "usaspending",
                 [_public_signal(
@@ -830,13 +862,13 @@ async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
                         f"{count} matched award(s) · ${total:,.0f} obligated"
                         + (f" · UEI {uei}" if uei else "")
                     ),
-                    raw_score=_award_score(total) if exact_match or count else None,
+                    raw_score=_award_score(total) if match_label in {"Exact", "Strong", "Name Match"} else None,
                     status="live",
                     evidence_quality=quality,
                     source_url=source_url,
                     insight=(
-                        f"USASpending.gov returned {count} award(s) whose recipient name matches "
-                        f"{search_name}. Matched obligations on this page total ${total:,.0f}"
+                        f"USASpending.gov returned {count} award(s) for recipient {sample_name}. "
+                        f"Entity match: {match_label}. Matched obligations on this page total ${total:,.0f}"
                         f"{f'; UEI {uei}' if uei else ''}"
                         f"{f'; DUNS {duns}' if duns else ''}. "
                         f"Award types: {', '.join(types) or 'unspecified'}. "
@@ -844,8 +876,8 @@ async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
                         "This is a floor across the retrieved page, not lifetime federal spend. "
                         + (
                             "Recipient identity was confirmed before attributing awards."
-                            if exact_match
-                            else "Exact recipient identity was not unique, so confidence is lowered and "
+                            if match_label in {"Exact", "Strong"}
+                            else "The recipient was only name-matched, so confidence is lowered and "
                             "similarly named entities were not assumed to be the same company."
                         )
                         + (" More awards exist beyond this page." if truncated else "")
@@ -858,7 +890,8 @@ async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
                         "totalObligations": total,
                         "awardTypes": types,
                         "agencies": agencies,
-                        "entity_match_confidence": 0.92 if exact_match else 0.62,
+                        "entityMatch": match_label,
+                        "entity_match_confidence": {"Exact": 0.95, "Strong": 0.82, "Name Match": 0.58}.get(match_label, 0.0),
                     },
                 )],
                 coverage="entity",

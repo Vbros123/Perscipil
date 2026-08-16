@@ -13,7 +13,7 @@ export default function LicensedData({ result }) {
         </div>
         <Badge tone="neutral">Not connected</Badge>
       </div>
-      <p>{panel.message}</p>
+      <p>{panel.message || 'Licensed credit, payment, cash-flow, and legal datasets are not currently connected.'}</p>
       <ul className="clean-list">
         <li>Available in {panel.availableIn || 'Enterprise/paid data mode'}</li>
         <li>Provider integration architecture ready</li>

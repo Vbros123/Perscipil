@@ -747,6 +747,34 @@
   font-size: 20px;
 }
 
+.score-trio {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+
+.score-trio div {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.score-trio span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.score-trio strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 20px;
+}
+
 .report-entity-type {
   margin: 4px 0 0;
   color: var(--muted);

@@ -172,7 +172,7 @@ async def score_company(
     company_clean = identity.legal_name
     start = time.perf_counter()
     selected = (selected_title or "").strip() or None
-    cache_key = "score:v9:" + identity.cache_key() + (f":sel:{canonical_key(selected)}" if selected else "")
+    cache_key = "score:v10:" + identity.cache_key() + (f":sel:{canonical_key(selected)}" if selected else "")
 
     if not refresh:
         cached = await score_cache.get(cache_key)
@@ -285,7 +285,7 @@ async def score_company(
             "message": (
                 "Licensed credit, cash-flow, and payment evidence is connected."
                 if licensed_data_enabled()
-                else "PrivateLens currently does not have a licensed credit/cash-flow/payment provider connected."
+                else "Licensed credit, payment, cash-flow, and legal datasets are not currently connected."
             ),
             "availableIn": "Enterprise/paid data mode",
             "architectureReady": True,

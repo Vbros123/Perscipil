@@ -4,6 +4,7 @@ Private company financial health research platform.
 """
 from contextlib import asynccontextmanager
 import logging
+import os
 import secrets
 import time
 
@@ -124,6 +125,7 @@ def health():
         "status": "ok",
         "version": settings.APP_VERSION,
         "environment": settings.ENVIRONMENT,
+        "git_commit": (os.environ.get("RENDER_GIT_COMMIT") or os.environ.get("GIT_COMMIT") or "")[:40] or None,
         "database": "postgres" if settings.DATABASE_URL.startswith(("postgres://", "postgresql://")) else "sqlite",
         "email": settings.EMAIL_DELIVERY_MODE,
         "observability": {"sentry": bool(settings.SENTRY_DSN), "metrics": bool(settings.METRICS_TOKEN)},

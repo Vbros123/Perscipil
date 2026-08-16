@@ -20,7 +20,7 @@ from services.scorer import compute_score
 def _facts(revenue=1000, prior=800, assets=4000, liabilities=1500, cash=700, equity=2500, net=200, operating=250):
     def series(*points):
         return {"units": {"USD": [
-            {"val": value, "fy": year, "fp": "FY", "form": "10-K", "end": f"{year}-06-30"}
+            {"val": value, "fy": year, "fp": "FY", "form": "10-K", "end": f"{year}-06-30", "filed": f"{year}-07-30"}
             for year, value in points
         ]}}
     return {
@@ -58,6 +58,15 @@ def test_extract_financials_and_score():
     assert metrics["revenueGrowth"] == pytest.approx(0.25)
     assert metrics["netIncome"] == 200
     assert metrics["debtToEquity"] == pytest.approx(0.6)
+    assert metrics["period"] == "annual"
+    revenue = metrics["facts"]["revenue"]
+    assert revenue["source"] == "SEC EDGAR XBRL"
+    assert revenue["unit"] == "USD"
+    assert revenue["period"] == "annual"
+    assert revenue["fiscalYear"] == 2025
+    assert revenue["periodEnd"]
+    assert revenue["form"] == "10-K"
+    assert revenue["filed"] == "2025-07-30"
     score = score_sec_financials(metrics)
     assert 50 <= score <= 86
 

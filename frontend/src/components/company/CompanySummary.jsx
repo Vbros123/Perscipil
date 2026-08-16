@@ -93,11 +93,25 @@ export default function CompanySummary({ result }) {
           {result.resolution?.limited_identification && (
             <p className="report-note">Limited company identification. Remaining public signals were still scored.</p>
           )}
+          <div className="score-trio">
+            <div>
+              <span>PrivateScore</span>
+              <strong>{scoreValue}{rated ? ' / 1000' : ''}</strong>
+            </div>
+            <div>
+              <span>Confidence</span>
+              <strong>{percent(confidence)}</strong>
+            </div>
+            <div>
+              <span>Data coverage</span>
+              <strong>{coverageDisplay}</strong>
+            </div>
+          </div>
           <div className="report-meta">
-            <span>Score ≠ confidence</span>
+            <span>Score, confidence, and coverage are separate</span>
             <span>{qualityLabel(quality)} evidence quality</span>
             <span>{counts.live} live · {counts.modelled} modelled · {counts.unavailable} unavailable</span>
-            <span>Model {result.report?.model_version || result.meta?.model_version || result.metadata?.modelVersion || 'public-v2'}</span>
+            <span>Snapshot {(result.meta?.input_snapshot_hash || '').slice(0, 12) || '—'}</span>
             <span>Updated {formatStamp(result.report?.last_updated || result.metadata?.generatedAt || result.meta?.computed_at)}</span>
           </div>
           <p className="report-disclaimer">{result.report?.disclaimer || result.meta?.legal_disclaimer}</p>

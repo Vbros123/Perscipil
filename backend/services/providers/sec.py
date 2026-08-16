@@ -146,7 +146,41 @@ def select_sec_match(query: str, rows: list[dict[str, Any]]) -> dict[str, Any] |
     return {**best, "match_score": best_score}
 
 
+def period_kind(row: dict[str, Any] | None) -> str:
+    if not row:
+        return "unknown"
+    form = str(row.get("form") or "")
+    fp = str(row.get("fp") or "")
+    if fp == "FY" or form.startswith("10-K") or form in {"20-F", "40-F"}:
+        return "annual"
+    if form.startswith("10-Q") or fp.startswith("Q"):
+        return "quarterly"
+    return "unknown"
+
+
+def fact_record(item: dict[str, Any] | None, unit: str = "USD") -> dict[str, Any] | None:
+    if not item or item.get("val") is None:
+        return None
+    try:
+        value = float(item["val"])
+    except (TypeError, ValueError):
+        return None
+    return {
+        "value": value,
+        "unit": unit,
+        "period": period_kind(item),
+        "fiscalYear": item.get("fy"),
+        "fiscalPeriod": item.get("fp"),
+        "periodEnd": item.get("end"),
+        "filed": item.get("filed"),
+        "form": item.get("form"),
+        "tag": item.get("tag"),
+        "source": "SEC EDGAR XBRL",
+    }
+
+
 def _latest_fact(concept: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Latest annual (FY / 10-K / 20-F) USD fact. Quarterly points are ignored."""
     if not isinstance(concept, dict):
         return None
     units = concept.get("units") or {}
@@ -159,22 +193,12 @@ def _latest_fact(concept: dict[str, Any] | None) -> dict[str, Any] | None:
         for row in rows:
             if not isinstance(row, dict) or row.get("val") is None:
                 continue
-            form = str(row.get("form") or "")
-            fp = str(row.get("fp") or "")
-            if form not in {"10-K", "10-K/A", "20-F", "40-F", "10-Q"} and fp != "FY":
+            if period_kind(row) != "annual":
                 continue
-            points.append(row)
+            points.append({**row, "unit": unit})
     if not points:
         return None
-
-    def _key(row: dict[str, Any]) -> tuple:
-        fy = row.get("fy") or 0
-        end = str(row.get("end") or "")
-        form = str(row.get("form") or "")
-        annual = 1 if (row.get("fp") == "FY" or form.startswith("10-K") or form in {"20-F", "40-F"}) else 0
-        return (annual, fy, end)
-
-    return max(points, key=_key)
+    return max(points, key=lambda row: (row.get("fy") or 0, str(row.get("end") or ""), str(row.get("filed") or "")))
 
 
 def _fact_value(facts: dict[str, Any], tags: tuple[str, ...]) -> dict[str, Any] | None:
@@ -205,7 +229,8 @@ def _prior_annual(concept: dict[str, Any] | None, current: dict[str, Any] | None
                 candidates.append(row)
     if not candidates:
         return None
-    return max(candidates, key=lambda row: str(row.get("end") or ""))
+    chosen = max(candidates, key=lambda row: str(row.get("end") or ""))
+    return {**chosen, "tag": current.get("tag")}
 
 
 def extract_financials(facts: dict[str, Any]) -> dict[str, Any]:
@@ -241,13 +266,49 @@ def extract_financials(facts: dict[str, Any]) -> dict[str, Any]:
     net_income_val = _num(net_income)
     operating_income_val = _num(operating_income)
     growth = None
-    if revenue_val and prior_val and prior_val != 0:
-        growth = (revenue_val - prior_val) / abs(prior_val)
-    net_margin = (net_income_val / revenue_val) if revenue_val and net_income_val is not None else None
-    operating_margin = (
-        operating_income_val / revenue_val if revenue_val and operating_income_val is not None else None
+    same_annual_revenue = (
+        revenue
+        and prior
+        and period_kind(revenue) == "annual"
+        and period_kind(prior) == "annual"
+        and revenue.get("tag") == (prior.get("tag") or revenue.get("tag"))
     )
-    debt_to_equity = (liabilities_val / equity_val) if liabilities_val is not None and equity_val not in {None, 0} else None
+    if same_annual_revenue and revenue_val and prior_val and prior_val != 0:
+        growth = (revenue_val - prior_val) / abs(prior_val)
+
+    def _same_annual(*items: dict[str, Any] | None) -> bool:
+        present = [item for item in items if item]
+        if len(present) < 2:
+            return False
+        years = {item.get("fy") for item in present}
+        return years != {None} and len(years) == 1 and all(period_kind(item) == "annual" for item in present)
+
+    net_margin = (
+        net_income_val / revenue_val
+        if revenue_val and net_income_val is not None and _same_annual(revenue, net_income)
+        else None
+    )
+    operating_margin = (
+        operating_income_val / revenue_val
+        if revenue_val and operating_income_val is not None and _same_annual(revenue, operating_income)
+        else None
+    )
+    debt_to_equity = (
+        liabilities_val / equity_val
+        if liabilities_val is not None and equity_val not in {None, 0} and _same_annual(liabilities, equity)
+        else None
+    )
+    records = {
+        "revenue": fact_record(revenue),
+        "priorRevenue": fact_record(prior),
+        "assets": fact_record(assets),
+        "liabilities": fact_record(liabilities),
+        "cash": fact_record(cash),
+        "equity": fact_record(equity),
+        "netIncome": fact_record(net_income),
+        "operatingIncome": fact_record(operating_income),
+        "operatingCashFlow": fact_record(operating_cash),
+    }
     return {
         "revenue": revenue_val,
         "revenueFy": revenue.get("fy") if revenue else None,
@@ -262,8 +323,10 @@ def extract_financials(facts: dict[str, Any]) -> dict[str, Any]:
         "netMargin": net_margin,
         "operatingMargin": operating_margin,
         "debtToEquity": debt_to_equity,
+        "period": "annual",
         "periodEnd": revenue.get("end") if revenue else (assets.get("end") if assets else None),
         "form": revenue.get("form") if revenue else (assets.get("form") if assets else None),
+        "facts": {key: value for key, value in records.items() if value},
     }
 
 
