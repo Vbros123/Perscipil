@@ -10,12 +10,13 @@ from services.providers.licensed import GatewayLicensedProvider
 settings = get_settings()
 
 PUBLIC_PROVIDERS = (
-    {"key": "gleif", "name": "GLEIF", "track": "public", "quality": "high", "scored": False},
-    {"key": "sec", "name": "SEC EDGAR", "track": "public", "quality": "high", "scored": False},
-    {"key": "wikipedia", "name": "Wikipedia", "track": "public", "quality": "low", "scored": True},
-    {"key": "news", "name": "DuckDuckGo / Hacker News", "track": "public", "quality": "low", "scored": True},
-    {"key": "jobs", "name": "Indeed", "track": "public", "quality": "low", "scored": True},
-    {"key": "usaspending", "name": "USASpending", "track": "public", "quality": "high", "scored": True},
+    {"key": "gleif", "name": "GLEIF", "track": "public", "quality": "high", "scored": False, "group": "identity", "optional": False},
+    {"key": "sec", "name": "SEC EDGAR", "track": "public", "quality": "high", "scored": True, "group": "financial_regulatory", "optional": False},
+    {"key": "usaspending", "name": "USASpending", "track": "public", "quality": "high", "scored": True, "group": "government", "optional": False},
+    {"key": "census", "name": "Census", "track": "public", "quality": "medium", "scored": False, "group": "industry", "optional": True},
+    {"key": "wikipedia", "name": "Wikipedia", "track": "public", "quality": "low", "scored": True, "group": "public_signals", "optional": False},
+    {"key": "news", "name": "DuckDuckGo / Hacker News", "track": "public", "quality": "low", "scored": True, "group": "public_signals", "optional": False},
+    {"key": "jobs", "name": "Jobs", "track": "public", "quality": "low", "scored": True, "group": "operating", "optional": True},
 )
 
 LICENSED_PROVIDERS = (
@@ -40,7 +41,14 @@ class ProviderRegistry:
     def get_available_providers(self) -> list[dict[str, Any]]:
         rows = []
         for item in PUBLIC_PROVIDERS:
-            rows.append({**item, "configured": True, "status": "public"})
+            configured = True
+            if item["key"] == "census":
+                configured = bool((settings.CENSUS_API_KEY or "").strip())
+            rows.append({
+                **item,
+                "configured": configured,
+                "status": "public" if configured or not item.get("optional") else "optional",
+            })
         licensed_on = self._licensed.configured()
         for item in LICENSED_PROVIDERS:
             rows.append({

@@ -10,6 +10,7 @@ import PageHeader from '../components/common/PageHeader'
 import CompanySummary from '../components/company/CompanySummary'
 import DataSources from '../components/company/DataSources'
 import EvidencePanel from '../components/company/EvidencePanel'
+import LicensedData from '../components/company/LicensedData'
 import SignalCard from '../components/company/SignalCard'
 
 const SCOREABLE = new Set(['company', 'parent_company', 'subsidiary', 'brand'])
@@ -263,6 +264,7 @@ export default function CompanyReport() {
             </section>
           )}
           <DataSources result={result} />
+          <LicensedData result={result} />
           <EvidencePanel result={result} />
           <section className="panel">
             <div className="panel-head">
@@ -303,7 +305,9 @@ export default function CompanyReport() {
             </section>
           )}
           <section className="signal-grid">
-            {result.breakdown?.map((signal) => <SignalCard key={signal.signal} signal={signal} />)}
+            {result.breakdown?.filter((signal) => !(signal.track === 'licensed' && !signal.used_in_score)).map((signal) => (
+              <SignalCard key={signal.signal} signal={signal} />
+            ))}
           </section>
         </>
       )}

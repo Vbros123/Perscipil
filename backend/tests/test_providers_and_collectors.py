@@ -27,7 +27,7 @@ def test_source_card_never_includes_a_stack_trace():
         error_code="TIMEOUT",
         evidence_quality="unavailable",
     ).as_source_card()
-    assert card["source"] == "Indeed"
+    assert card["source"] == "Jobs"
     assert card["status"] == "unavailable"
     assert card["evidenceQuality"] == "unavailable"
     assert card["errorCode"] == "TIMEOUT"
@@ -78,12 +78,14 @@ def test_all_collectors_failed_report_is_honest(monkeypatch):
     monkeypatch.setattr("services.collectors.collect_sec_edgar", boom)
     monkeypatch.setattr("services.collectors.collect_usa_spending", boom)
     monkeypatch.setattr("services.collectors.collect_gleif", boom)
+    monkeypatch.setattr("services.collectors.collect_census", boom)
     monkeypatch.setattr("services.collectors.collect_licensed_signals", no_licensed)
 
     collection = asyncio.run(collect_all(CompanyIdentity(legal_name="Unknown Startup LLC")))
+    required = [item for item in collection["collector_results"] if not item.optional]
     assert collection["partial_failure"] is True
     assert all(item.status == "unavailable" for item in collection["collector_results"])
-    assert all(item.error_code == "TIMEOUT" for item in collection["collector_results"])
+    assert all(item.error_code == "TIMEOUT" for item in required)
 
     result = compute_score(collection["signals"], model_release_stage="shadow")
     assert result["private_score"] is None
@@ -124,6 +126,9 @@ def test_partial_collector_timeout_does_not_stop_others(monkeypatch):
     async def gleif(_name, resolved=None):
         return CollectorResult(source="gleif", status="not_applicable", signals=[])
 
+    async def census(_name, resolved=None):
+        return CollectorResult(source="census", status="unavailable", optional=True, signals=[])
+
     async def no_licensed(_identity):
         return [], {"gateway_enabled": False}
 
@@ -133,6 +138,7 @@ def test_partial_collector_timeout_does_not_stop_others(monkeypatch):
     monkeypatch.setattr("services.collectors.collect_sec_edgar", sec)
     monkeypatch.setattr("services.collectors.collect_usa_spending", awards)
     monkeypatch.setattr("services.collectors.collect_gleif", gleif)
+    monkeypatch.setattr("services.collectors.collect_census", census)
     monkeypatch.setattr("services.collectors.collect_licensed_signals", no_licensed)
 
     collection = asyncio.run(collect_all(CompanyIdentity(legal_name="Example Co")))
@@ -195,15 +201,16 @@ def test_score_company_all_timeouts_stays_unrated(monkeypatch):
     monkeypatch.setattr("services.collectors.collect_sec_edgar", boom)
     monkeypatch.setattr("services.collectors.collect_usa_spending", boom)
     monkeypatch.setattr("services.collectors.collect_gleif", boom)
+    monkeypatch.setattr("services.collectors.collect_census", boom)
     monkeypatch.setattr("services.collectors.collect_licensed_signals", no_licensed)
 
     result = asyncio.run(score_company("Unknown Co LLC", refresh=True))
     assert result["private_score"] is None
     assert result["scoring_status"] == "unrated"
     assert result["rating"] == "Insufficient public evidence"
-    assert result["sourceAttempts"]["attempted"] == 6
-    assert result["sourceAttempts"]["unavailable"] == 6
+    assert result["sourceAttempts"]["attempted"] == 5
+    assert result["sourceAttempts"]["unavailable"] == 5
     assert result["dataSources"]
     licensed = next(item for item in result["dataSources"] if item["key"] == "licensed")
-    assert licensed["status"] == "unavailable"
+    assert licensed["status"] == "not_connected"
     assert "Traceback" not in str(result)

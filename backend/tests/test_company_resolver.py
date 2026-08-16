@@ -153,7 +153,12 @@ def _patch_client(monkeypatch, summaries, search_titles):
         from services.providers.gleif import GleifLookup
         return GleifLookup(status="unavailable")
 
+    async def no_sec(query, aliases=None):
+        from services.providers.sec import SecLookup
+        return SecLookup(status="not_applicable", error_code="NO_CIK")
+
     monkeypatch.setattr("services.providers.gleif.lookup_gleif", no_gleif)
+    monkeypatch.setattr("services.providers.sec.lookup_sec_cik", no_sec)
 
 
 def test_cargill_auto_selects_company_over_family(monkeypatch):

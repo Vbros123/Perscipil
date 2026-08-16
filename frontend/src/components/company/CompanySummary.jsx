@@ -86,6 +86,9 @@ export default function CompanySummary({ result }) {
           {result.company?.lei && (
             <p className="report-entity-type">LEI {result.company.lei}{result.company.entityStatus ? ` · ${result.company.entityStatus}` : ''}{result.company.jurisdiction ? ` · ${result.company.jurisdiction}` : ''}</p>
           )}
+          {result.company?.cik && (
+            <p className="report-entity-type">SEC CIK {result.company.cik}{result.company.ticker ? ` · ${result.company.ticker}` : ''}</p>
+          )}
           <p>{result.summary}</p>
           {result.resolution?.limited_identification && (
             <p className="report-note">Limited company identification. Remaining public signals were still scored.</p>

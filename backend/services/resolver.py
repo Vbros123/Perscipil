@@ -286,15 +286,21 @@ class ResolvedCompany:
     needs_disambiguation: bool = False
     limited_identification: bool = False
     gleif: dict[str, Any] | None = None
+    sec: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         gleif = self.gleif or {}
         selected = gleif.get("selected") if isinstance(gleif.get("selected"), dict) else gleif
+        sec = self.sec or {}
+        sec_selected = sec.get("selected") if isinstance(sec.get("selected"), dict) else {}
         return {
             "name": self.legal_name,
             "canonicalName": self.canonical_name,
             "legalName": selected.get("legalName") or self.legal_name,
             "lei": self.identifiers.get("lei") or selected.get("lei"),
+            "cik": self.identifiers.get("cik") or sec_selected.get("cik"),
+            "ticker": self.identifiers.get("ticker") or sec_selected.get("ticker"),
+            "uei": self.identifiers.get("uei"),
             "entityStatus": selected.get("entityStatus"),
             "jurisdiction": selected.get("jurisdiction"),
             "legalForm": selected.get("legalForm"),
@@ -309,6 +315,7 @@ class ResolvedCompany:
             "identifiers": self.identifiers,
             "resolutionConfidence": self.resolution_confidence,
             "gleif": gleif or None,
+            "sec": sec or None,
         }
 
     def resolution_payload(self) -> dict[str, Any]:
@@ -510,6 +517,30 @@ def _apply_gleif(resolved: ResolvedCompany, lookup) -> ResolvedCompany:
     return resolved
 
 
+def _apply_sec(resolved: ResolvedCompany, lookup) -> ResolvedCompany:
+    """Attach an SEC CIK when the name matches a registrant. Missing CIK is not negative."""
+    if lookup is None:
+        return resolved
+    payload = lookup.as_dict()
+    resolved.sec = payload
+    selected = lookup.selected
+    if selected is None:
+        return resolved
+    resolved.identifiers = {
+        **resolved.identifiers,
+        "cik": selected.cik,
+        **({"ticker": selected.ticker} if selected.ticker else {}),
+    }
+    if selected.title and selected.title not in resolved.aliases:
+        resolved.aliases = [*resolved.aliases, selected.title]
+    if resolved.company_type == "unknown":
+        resolved.company_type = "public"
+    if resolved.resolution_status == "resolved":
+        resolved.resolution_confidence = max(resolved.resolution_confidence, min(92, selected.match_score or 0))
+    logger.info("[Resolver] Query=%r cik=%s ticker=%s status=sec_attached", resolved.query_name, selected.cik, selected.ticker)
+    return resolved
+
+
 async def resolve_company(name: str, selected_title: str | None = None, country_code: str | None = None) -> ResolvedCompany:
     """Resolve a typed name to a canonical company before collectors run."""
     key = canonical_key(name)
@@ -530,6 +561,16 @@ async def resolve_company(name: str, selected_title: str | None = None, country_
         resolved = _apply_gleif(resolved, gleif)
     except Exception as exc:
         logger.warning("[Resolver] Query=%r gleif_error=%s", name, type(exc).__name__)
+    try:
+        from services.providers.sec import lookup_sec_cik
+
+        aliases = list(resolved.aliases)
+        if resolved.legal_name and resolved.legal_name not in aliases:
+            aliases.append(resolved.legal_name)
+        sec = await lookup_sec_cik(selected_title or name, aliases)
+        resolved = _apply_sec(resolved, sec)
+    except Exception as exc:
+        logger.warning("[Resolver] Query=%r sec_error=%s", name, type(exc).__name__)
     return resolved
 
 

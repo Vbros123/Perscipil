@@ -50,7 +50,8 @@ PUBLIC_WEIGHT_TOTAL = sum(PUBLIC_WEIGHTS.values())
 USABLE_STATUSES = frozenset({"live", "modelled", "verified"})
 PUBLISHED_SCORE_STATUSES = frozenset({"rated", "limited"})
 LIMITED_COVERAGE_THRESHOLD = 0.40
-SUPPORTING_CATEGORIES = frozenset({"digital", "sentiment"})
+SUPPORTING_CATEGORIES = frozenset({"digital", "sentiment", "identity"})
+CONTEXT_CATEGORIES = frozenset({"industry"})
 MAX_SUPPORTING_SHARE = 0.30
 
 # Quality multipliers applied to spec weight before the signal can move the score.
@@ -78,11 +79,14 @@ PERFECT_COVERAGE = 0.85
 PERFECT_HIGH_QUALITY_SHARE = 0.50
 
 CATEGORY_LABELS = {
-    "financial": "Financial Health",
+    "identity": "Identity & Standing",
     "operational": "Operational Signals",
-    "legal": "Legal & Regulatory",
-    "sentiment": "Market Sentiment",
-    "digital": "Digital Presence",
+    "sentiment": "Market Signals",
+    "financial": "Financial Evidence",
+    "government": "Government Activity",
+    "industry": "Industry Context",
+    "legal": "Legal Risk",
+    "digital": "Identity & Standing",
 }
 
 RATING_BANDS = [
@@ -210,18 +214,40 @@ def _category_explanation(category: str, used: list[dict[str, Any]], missing: li
             )
         if category == "digital":
             return "No digital-identity source was resolved, so web presence did not affect the score."
+        if category == "identity":
+            return "No company-specific identity evidence was scored. Registry matches stay context-only."
         if category == "sentiment":
             return "No usable news polarity was retrieved, so sentiment did not affect the score."
+        if category == "government":
+            return "No matched federal-award evidence was scored for this company."
+        if category == "industry":
+            return (
+                "Industry context is shown for benchmarking only. It is not this company's own "
+                "employment, payroll, or revenue and does not change PrivateScore."
+            )
         return "No operational evidence was scored for this category."
     if category == "digital":
         return (
             f"Digital presence ({names}) is a supporting identity signal, not a financial-health "
             f"measure. Evidence quality: {quality}."
         )
+    if category == "identity":
+        return (
+            f"Identity evidence ({names}) is a supporting public signal and cannot dominate PrivateScore. "
+            f"Evidence quality: {quality}."
+        )
     if category == "sentiment":
         return (
-            f"Market sentiment ({names}) uses public keyword context and cannot dominate the score. "
+            f"Market signals ({names}) use public keyword context and cannot dominate the score. "
             f"Evidence quality: {quality}."
+        )
+    if category == "government":
+        extra = f" Unscored government inputs: {', '.join(missing)}." if missing else ""
+        return f"Government activity uses matched recipient awards ({names}).{extra} Evidence quality: {quality}."
+    if category == "industry":
+        return (
+            f"Industry context ({names}) is national NAICS-level Census data, not company financials. "
+            "It is excluded from PrivateScore."
         )
     if category == "financial":
         extra = f" Unscored financial inputs: {', '.join(missing)}." if missing else ""
@@ -297,6 +323,7 @@ def compute_score(
         status = _availability_status(signal)
         quality = _evidence_quality(signal, status, spec)
         wants_score = bool(signal.get("is_scored", True))
+        scope = signal.get("evidence_scope") or spec.get("scope") or "company"
         raw = _finite_score(signal.get("raw_score"))
         usable_value = raw is not None
         role = spec.get("role") or ("supporting" if category in SUPPORTING_CATEGORIES else "core")
@@ -305,6 +332,8 @@ def compute_score(
             and wants_score
             and status in USABLE_STATUSES
             and usable_value
+            and scope != "industry"
+            and category not in CONTEXT_CATEGORIES
         )
         if wants_score and weight and status in USABLE_STATUSES and not usable_value:
             logger.warning("scorer.unusable_raw_score signal=%s value=%r", name, signal.get("raw_score"))
@@ -551,6 +580,8 @@ def compute_score(
     for category, missing in category_missing.items():
         if category in category_summary:
             continue
+        if category == "legal":
+            continue
         category_summary[category] = {
             "label": CATEGORY_LABELS.get(category, category.title()),
             "score": None,
@@ -560,6 +591,21 @@ def compute_score(
             "evidenceQuality": "unavailable",
             "coverage": 0.0,
             "explanation": _category_explanation(category, [], missing, "unavailable"),
+        }
+    if "legal" in category_summary and not any(row["category"] == "legal" for row in used_rows):
+        category_summary.pop("legal", None)
+    industry_rows = [item for item in breakdown if item.get("category") == "industry"]
+    if industry_rows and "industry" not in category_summary:
+        live_industry = [item for item in industry_rows if item.get("availability_status") == "live"]
+        category_summary["industry"] = {
+            "label": CATEGORY_LABELS["industry"],
+            "score": None,
+            "signal_count": len(live_industry),
+            "weight_coverage": 0.0,
+            "evidence_quality": "medium" if live_industry else "unavailable",
+            "evidenceQuality": "medium" if live_industry else "unavailable",
+            "coverage": 0.0,
+            "explanation": _category_explanation("industry", live_industry, [], "medium" if live_industry else "unavailable"),
         }
 
     real_count = sum(1 for signal in signals if not signal.get("is_simulated", True))

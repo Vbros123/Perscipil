@@ -98,12 +98,18 @@ def _data_sources(collection: dict[str, Any]) -> list[dict[str, Any]]:
         if hasattr(item, "as_source_card"):
             cards.append(item.as_source_card())
     cards.append({
-        "source": "Licensed Financial Data",
+        "source": "Licensed credit / cash-flow / payment data",
         "key": "licensed",
-        "status": "live" if licensed_data_enabled() else "unavailable",
-        "evidenceQuality": "high" if licensed_data_enabled() else "unavailable",
+        "status": "live" if licensed_data_enabled() else "not_connected",
+        "evidenceQuality": "high" if licensed_data_enabled() else "none",
+        "coverage": "entity" if licensed_data_enabled() else "none",
+        "lastRetrieved": None,
         "errorCode": None if licensed_data_enabled() else "NOT_CONFIGURED",
-        "retrievedAt": None,
+        "entityMatch": "Connected" if licensed_data_enabled() else "Not connected",
+        "sourceUrl": None,
+        "group": "licensed",
+        "groupLabel": "LICENSED DATA",
+        "optional": False,
     })
     if any((item.get("availability_status") or item.get("status")) == "modelled" for item in collection.get("signals") or []):
         cards.append({
@@ -166,7 +172,7 @@ async def score_company(
     company_clean = identity.legal_name
     start = time.perf_counter()
     selected = (selected_title or "").strip() or None
-    cache_key = "score:v8:" + identity.cache_key() + (f":sel:{canonical_key(selected)}" if selected else "")
+    cache_key = "score:v9:" + identity.cache_key() + (f":sel:{canonical_key(selected)}" if selected else "")
 
     if not refresh:
         cached = await score_cache.get(cache_key)
@@ -227,13 +233,15 @@ async def score_company(
         warnings.append("Limited company identification. Score uses whatever public signals could be collected.")
 
     collectors = collection.get("collector_results") or []
+    required = [item for item in collectors if not getattr(item, "optional", False)]
     source_attempts = {
-        "attempted": len(collectors),
-        "successful": sum(1 for item in collectors if item.status in {"live", "modelled", "not_applicable"}),
-        "unavailable": sum(1 for item in collectors if item.status == "unavailable"),
+        "attempted": len(required),
+        "successful": sum(1 for item in required if item.status in {"live", "modelled", "not_applicable"}),
+        "unavailable": sum(1 for item in required if item.status == "unavailable"),
+        "optionalUnavailable": sum(1 for item in collectors if getattr(item, "optional", False) and item.status == "unavailable"),
         "failed": [
             {"source": item.source, "errorCode": item.error_code or item.error}
-            for item in collectors if item.status == "unavailable"
+            for item in required if item.status == "unavailable"
         ],
     }
     data_sources = _data_sources(collection)
@@ -270,6 +278,18 @@ async def score_company(
         "dataSources": data_sources,
         "growthSignals": growth_signals,
         "sourceAttempts": source_attempts,
+        "licensedData": {
+            "connected": licensed_data_enabled(),
+            "status": "live" if licensed_data_enabled() else "not_connected",
+            "title": "Financial / Credit Data",
+            "message": (
+                "Licensed credit, cash-flow, and payment evidence is connected."
+                if licensed_data_enabled()
+                else "PrivateLens currently does not have a licensed credit/cash-flow/payment provider connected."
+            ),
+            "availableIn": "Enterprise/paid data mode",
+            "architectureReady": True,
+        },
         "metadata": {
             "generatedAt": datetime.now(timezone.utc).isoformat(),
             "modelVersion": result["meta"]["model_version"],
@@ -376,8 +396,9 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
         ],
         "limitations": [
             "Missing and not-applicable sources are excluded from the score; they are never treated as positive or as zero.",
-            "Public signals (keyword jobs, news polarity, Wikipedia identity) are supporting evidence and cannot produce a perfect score by themselves.",
-            "Modelled estimates carry a reduced weight and cannot dominate a live report.",
+            "GLEIF, Census industry context, and Wikipedia identity cannot manufacture a high PrivateScore by themselves.",
+            "Census figures are national industry statistics, not this company's own employment or revenue.",
+            "Absence of SEC filings, an LEI, or job postings is not negative financial evidence.",
             "Licensed credit, cash-flow, and legal evidence stay unavailable until a real gateway is configured.",
         ],
         "growth_signals": score_data.get("growthSignals") or [],

@@ -673,9 +673,30 @@
   font-weight: 600;
 }
 
+.source-groups {
+  display: grid;
+  gap: 18px;
+}
+
+.source-group h3 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
 .source-list {
   display: grid;
   gap: 8px;
+}
+
+.source-match {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.licensed-panel p {
+  margin: 0 0 12px;
 }
 
 .source-row {

@@ -147,6 +147,7 @@ Vite runs on `http://localhost:3001`.
 | `ALLOWED_HOSTS` | No | `*` | Set to `privatelens.onrender.com` in production. |
 | `AUTO_CREATE_TABLES` | No | `true` | Use `false` in production and run Alembic migrations instead. |
 | `HTTP_TIMEOUT` | No | `8.0` | External collector timeout. |
+| `CENSUS_API_KEY` | No | | Free Census Bureau key on Render only. Disables Census when empty. Never put this on Vercel. |
 | `RATE_LIMIT_PER_MINUTE` | No | `30` | Per-IP score/compare rate limit. |
 
 ### Frontend
@@ -221,14 +222,14 @@ PrivateLens currently operates primarily on public and modelled signals.
 
 | Source | Quality when live | Notes |
 |---|---|---|
-| GLEIF | High | Free public LEI identity. No API key. Context only — never a PrivateScore input. Missing LEI is not negative. |
-| SEC EDGAR | High | Context / not applicable for most private companies |
-| USASpending | High | US federal awards only; a floor across retrieved pages |
+| GLEIF | High | Identity / registry. Free public LEI lookup. No API key. Context only — never a PrivateScore input. |
+| SEC EDGAR | High | Official `data.sec.gov` CIK + XBRL facts for public registrants. Private companies are NOT_APPLICABLE. |
+| USASpending | High | Matched federal recipient awards only; similarly named entities are excluded |
+| Census | Medium | Optional. National industry context (CBP). Requires `CENSUS_API_KEY`. Never treated as company financials. |
 | Wikipedia | Low | Identity and founding-year context |
-| Indeed | Low | Job-count proxy; often blocked |
 | DuckDuckGo / Hacker News | Low | Coarse keyword sentiment |
-| Modelled signals | Modelled | Discounted; never treated as verified |
-| Licensed credit / cash-flow / legal | High if configured | **Unavailable** until a real gateway and credentials exist |
+| Jobs | None | Optional. Indeed is not scraped and is not a required source. |
+| Licensed credit / cash-flow / legal | High if configured | Shown as **Not connected** until a real gateway exists |
 
 Collectors run concurrently. One timeout cannot stop the rest. If every public collector fails, the report is **Insufficient public evidence** — no score is manufactured.
 
@@ -257,7 +258,8 @@ A licensed numeric rating still requires at least 70% licensed-weight coverage, 
 ```text
 Company
    |
-   +-- public collectors (GLEIF, SEC, Wikipedia, jobs, news, USASpending)
+   +-- public collectors (GLEIF, SEC, USASpending, Census, Wikipedia, news)
+   +-- optional collectors (jobs; Census when no key)
    +-- LicensedDataProvider (unavailable unless configured)
    |
 Signal aggregator (standardized Signal objects)
@@ -352,8 +354,10 @@ curl -H "Authorization: Bearer $METRICS_TOKEN" https://privatelens.onrender.com/
 
 - Production runs `DATA_MODE=public`. There is no live licensed credit, cash-flow, or legal feed.
 - GLEIF is a free public identity source and requires no API key. A missing LEI is not evidence a company does not exist and does not change PrivateScore.
-- Wikipedia, Indeed, and DuckDuckGo/Hacker News are coarse public collectors and are labelled low quality.
-- Job boards and search engines may block or rate-limit automated requests.
+- SEC EDGAR uses official `data.sec.gov` APIs. Private companies are NOT_APPLICABLE; a missing filing is not negative evidence.
+- Census industry statistics require `CENSUS_API_KEY` on Render. They are national NAICS context, not company financials.
+- Wikipedia and DuckDuckGo/Hacker News are coarse public collectors and are labelled low quality.
+- Job posting data is optional. Indeed is not scraped.
 - If every public collector times out, the result is Insufficient public evidence — not a guessed score.
 - Company resolution uses public encyclopedic sources and can be ambiguous for common names.
 - PrivateScore™ is not a credit bureau rating, investment recommendation, or lending decision.

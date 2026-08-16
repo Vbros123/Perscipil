@@ -138,18 +138,18 @@ async def list_signals():
             "max_age_days": spec["max_age_days"],
         })
     signals.append({
-        "name": "SEC / Regulatory Filings",
-        "status": "context-only",
-        "track": "public",
-        "weight": "Context",
-        "source": "SEC EDGAR",
-    })
-    signals.append({
         "name": "Legal Entity Identity",
         "status": "context-only",
         "track": "public",
         "weight": "Context",
         "source": "GLEIF",
+    })
+    signals.append({
+        "name": "Industry Context",
+        "status": "context-only",
+        "track": "public",
+        "weight": "Context",
+        "source": "Census",
     })
     return {"signals": signals, "provider_catalog": list(PROVIDER_CATALOG.values())}
 

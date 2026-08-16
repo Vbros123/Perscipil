@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     # Data collector timeouts
     HTTP_TIMEOUT: float = 8.0
 
+    # Optional free Census Bureau key. Industry context only; never company financials.
+    CENSUS_API_KEY: str | None = None
+
     # CORS
     ALLOWED_ORIGINS: str = "*"
     FRONTEND_URL: str = "http://localhost:5173"
