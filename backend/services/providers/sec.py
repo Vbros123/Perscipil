@@ -202,13 +202,24 @@ def _latest_fact(concept: dict[str, Any] | None) -> dict[str, Any] | None:
 
 
 def _fact_value(facts: dict[str, Any], tags: tuple[str, ...]) -> dict[str, Any] | None:
+    """Latest annual fact across candidate tags.
+
+    Issuers change revenue tags over time. Taking the first tag that has any
+    annual point would mix a stale FY2022 revenue series with a FY2026 10-K.
+    """
     us_gaap = (facts.get("facts") or {}).get("us-gaap") or {}
     ifrs = (facts.get("facts") or {}).get("ifrs-full") or {}
+    chosen: dict[str, Any] | None = None
+    chosen_key: tuple[Any, ...] = ()
     for tag in tags:
         latest = _latest_fact(us_gaap.get(tag) or ifrs.get(tag))
-        if latest is not None:
-            return {"tag": tag, **latest}
-    return None
+        if latest is None:
+            continue
+        key = (latest.get("fy") or 0, str(latest.get("end") or ""), str(latest.get("filed") or ""))
+        if chosen is None or key > chosen_key:
+            chosen = {"tag": tag, **latest}
+            chosen_key = key
+    return chosen
 
 
 def _prior_annual(concept: dict[str, Any] | None, current: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -309,6 +320,11 @@ def extract_financials(facts: dict[str, Any]) -> dict[str, Any]:
         "operatingIncome": fact_record(operating_income),
         "operatingCashFlow": fact_record(operating_cash),
     }
+    headline = max(
+        [item for item in (revenue, assets, net_income, operating_income) if item],
+        key=lambda item: (item.get("fy") or 0, str(item.get("end") or "")),
+        default=None,
+    )
     return {
         "revenue": revenue_val,
         "revenueFy": revenue.get("fy") if revenue else None,
@@ -324,8 +340,8 @@ def extract_financials(facts: dict[str, Any]) -> dict[str, Any]:
         "operatingMargin": operating_margin,
         "debtToEquity": debt_to_equity,
         "period": "annual",
-        "periodEnd": revenue.get("end") if revenue else (assets.get("end") if assets else None),
-        "form": revenue.get("form") if revenue else (assets.get("form") if assets else None),
+        "periodEnd": (headline or {}).get("end"),
+        "form": (headline or {}).get("form"),
         "facts": {key: value for key, value in records.items() if value},
     }
 

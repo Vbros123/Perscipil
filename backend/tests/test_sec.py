@@ -71,6 +71,47 @@ def test_extract_financials_and_score():
     assert 50 <= score <= 86
 
 
+def test_extract_financials_uses_latest_revenue_tag():
+    """NVIDIA-style: older contract-revenue tag must not beat a newer Revenues series."""
+    facts = {
+        "cik": "0001045810",
+        "entityName": "NVIDIA CORP",
+        "facts": {
+            "us-gaap": {
+                "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                    "units": {"USD": [
+                        {"val": 16675000000, "fy": 2021, "fp": "FY", "form": "10-K", "end": "2021-01-31", "filed": "2021-02-26"},
+                        {"val": 26914000000, "fy": 2022, "fp": "FY", "form": "10-K", "end": "2022-01-30", "filed": "2022-03-18"},
+                    ]}
+                },
+                "Revenues": {
+                    "units": {"USD": [
+                        {"val": 60922000000, "fy": 2024, "fp": "FY", "form": "10-K", "end": "2024-01-28", "filed": "2024-02-21"},
+                        {"val": 130497000000, "fy": 2025, "fp": "FY", "form": "10-K", "end": "2025-01-26", "filed": "2025-02-26"},
+                    ]}
+                },
+                "Assets": {
+                    "units": {"USD": [
+                        {"val": 111601000000, "fy": 2025, "fp": "FY", "form": "10-K", "end": "2025-01-26", "filed": "2025-02-26"},
+                    ]}
+                },
+                "NetIncomeLoss": {
+                    "units": {"USD": [
+                        {"val": 72880000000, "fy": 2025, "fp": "FY", "form": "10-K", "end": "2025-01-26", "filed": "2025-02-26"},
+                    ]}
+                },
+            }
+        },
+    }
+    metrics = extract_financials(facts)
+    assert metrics["revenue"] == 130497000000
+    assert metrics["facts"]["revenue"]["tag"] == "Revenues"
+    assert metrics["facts"]["revenue"]["fiscalYear"] == 2025
+    assert metrics["netIncome"] == 72880000000
+    assert metrics["netMargin"] == pytest.approx(72880000000 / 130497000000)
+    assert metrics["periodEnd"] == "2025-01-26"
+
+
 def test_malformed_facts_are_rejected():
     with pytest.raises(ValueError):
         extract_financials({"facts": {}})
