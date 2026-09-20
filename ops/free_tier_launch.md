@@ -1,3 +1,5 @@
+> SUPERSEDED reference: consult `cleanup_deployment.md` and `../dataroom-prep/` for current controls. Historical assumptions below may no longer apply.
+
 # PrivateLens Free-Tier Launch
 
 This is the exact remaining operator checklist. The application code and deployment manifests are already configured for this stack.

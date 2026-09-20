@@ -6,6 +6,8 @@ from core.config import Settings
 def production_settings(**overrides) -> Settings:
     values = {
         "ENVIRONMENT": "production",
+        "AUTH_TOKEN_RETURN_IN_RESPONSE": False,
+        "RATE_LIMIT_BACKEND": "database",
         "DATABASE_URL": "postgresql://user:password@example.com/privatelens",
         "JWT_SECRET": "j" * 48,
         "ALLOWED_ORIGINS": "https://privatelens.vercel.app",

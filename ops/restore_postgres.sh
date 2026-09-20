@@ -11,8 +11,8 @@ if [[ -z "${DATABASE_URL:-}" || -z "${BACKUP_FILE:-}" ]]; then
   exit 1
 fi
 
-if [[ -f "$BACKUP_FILE.sha256" ]]; then
-  sha256sum --check "$BACKUP_FILE.sha256"
-fi
+test -f "$BACKUP_FILE.sha256" || { echo "Backup checksum required" >&2; exit 1; }
+sha256sum --check "$BACKUP_FILE.sha256"
+pg_restore --list "$BACKUP_FILE" > /dev/null
 
-pg_restore --clean --if-exists --no-owner --no-acl --dbname="$DATABASE_URL" "$BACKUP_FILE"
+pg_restore --exit-on-error --single-transaction --clean --if-exists --no-owner --no-acl --dbname="$DATABASE_URL" "$BACKUP_FILE"

@@ -1,0 +1,171 @@
+...............................................s.....FFFFFF............. [ 64%]
+......................................F.                                 [100%]
+=================================== FAILURES ===================================
+_____________________ test_free_production_stack_is_valid ______________________
+
+    def test_free_production_stack_is_valid():
+>       production_settings().validate_runtime()
+
+tests/test_production_config.py:24: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Settings(APP_NAME='PrivateLens API', APP_VERSION='4.0.0', ENVIRONMENT='production', DEBUG=False, POLICIES_PUBLISHED=Fa...IGINS='https://privatelens.vercel.app', FRONTEND_URL='http://localhost:5173', ALLOWED_HOSTS='privatelens.onrender.com')
+
+    def validate_runtime(self) -> None:
+        if not self.is_production:
+            return
+        if self.DEBUG or self.AUTH_TOKEN_RETURN_IN_RESPONSE:
+>           raise RuntimeError("Debug and security-token responses must be disabled in production.")
+E           RuntimeError: Debug and security-token responses must be disabled in production.
+
+core/config.py:143: RuntimeError
+_________ test_licensed_mode_without_credentials_falls_back_to_public __________
+
+    def test_licensed_mode_without_credentials_falls_back_to_public():
+        settings = production_settings(DATA_MODE="licensed")
+>       settings.validate_runtime()
+
+tests/test_production_config.py:29: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Settings(APP_NAME='PrivateLens API', APP_VERSION='4.0.0', ENVIRONMENT='production', DEBUG=False, POLICIES_PUBLISHED=Fa...IGINS='https://privatelens.vercel.app', FRONTEND_URL='http://localhost:5173', ALLOWED_HOSTS='privatelens.onrender.com')
+
+    def validate_runtime(self) -> None:
+        if not self.is_production:
+            return
+        if self.DEBUG or self.AUTH_TOKEN_RETURN_IN_RESPONSE:
+>           raise RuntimeError("Debug and security-token responses must be disabled in production.")
+E           RuntimeError: Debug and security-token responses must be disabled in production.
+
+core/config.py:143: RuntimeError
+__________ test_hybrid_mode_without_credentials_falls_back_to_public ___________
+
+    def test_hybrid_mode_without_credentials_falls_back_to_public():
+        settings = production_settings(DATA_MODE="hybrid")
+>       settings.validate_runtime()
+
+tests/test_production_config.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Settings(APP_NAME='PrivateLens API', APP_VERSION='4.0.0', ENVIRONMENT='production', DEBUG=False, POLICIES_PUBLISHED=Fa...IGINS='https://privatelens.vercel.app', FRONTEND_URL='http://localhost:5173', ALLOWED_HOSTS='privatelens.onrender.com')
+
+    def validate_runtime(self) -> None:
+        if not self.is_production:
+            return
+        if self.DEBUG or self.AUTH_TOKEN_RETURN_IN_RESPONSE:
+>           raise RuntimeError("Debug and security-token responses must be disabled in production.")
+E           RuntimeError: Debug and security-token responses must be disabled in production.
+
+core/config.py:143: RuntimeError
+________ test_licensed_mode_requires_https_when_credentials_are_present ________
+
+    def test_licensed_mode_requires_https_when_credentials_are_present():
+        settings = production_settings(
+            DATA_MODE="licensed",
+            LICENSED_DATA_GATEWAY_URL="http://gateway.example.com/v2/evidence",
+            LICENSED_DATA_API_KEY="g" * 32,
+        )
+>       with pytest.raises(RuntimeError, match="Licensed data gateway"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'Licensed data gateway'
+E         Actual message: 'Debug and security-token responses must be disabled in production.'
+
+tests/test_production_config.py:46: AssertionError
+_____________ test_validated_release_requires_documented_approval ______________
+
+    def test_validated_release_requires_documented_approval():
+        settings = production_settings(
+            DATA_MODE="licensed",
+            LICENSED_DATA_GATEWAY_URL="https://gateway.example.com/v2/evidence",
+            LICENSED_DATA_API_KEY="g" * 32,
+            MODEL_RELEASE_STAGE="validated",
+        )
+    
+>       with pytest.raises(RuntimeError, match="validation reference and approver"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'validation reference and approver'
+E         Actual message: 'Debug and security-token responses must be disabled in production.'
+
+tests/test_production_config.py:58: AssertionError
+______________ test_validated_release_accepts_governance_metadata ______________
+
+    def test_validated_release_accepts_governance_metadata():
+        settings = production_settings(
+            DATA_MODE="licensed",
+            LICENSED_DATA_GATEWAY_URL="https://gateway.example.com/v2/evidence",
+            LICENSED_DATA_API_KEY="g" * 32,
+            MODEL_RELEASE_STAGE="validated",
+            MODEL_VALIDATION_REFERENCE="validation-2026-001",
+            MODEL_VALIDATION_SHA256="a" * 64,
+            MODEL_APPROVED_BY="Model Risk Committee",
+        )
+>       settings.validate_runtime()
+
+tests/test_production_config.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Settings(APP_NAME='PrivateLens API', APP_VERSION='4.0.0', ENVIRONMENT='production', DEBUG=False, POLICIES_PUBLISHED=Fa...IGINS='https://privatelens.vercel.app', FRONTEND_URL='http://localhost:5173', ALLOWED_HOSTS='privatelens.onrender.com')
+
+    def validate_runtime(self) -> None:
+        if not self.is_production:
+            return
+        if self.DEBUG or self.AUTH_TOKEN_RETURN_IN_RESPONSE:
+>           raise RuntimeError("Debug and security-token responses must be disabled in production.")
+E           RuntimeError: Debug and security-token responses must be disabled in production.
+
+core/config.py:143: RuntimeError
+________________ test_live_sec_public_companies_when_reachable _________________
+
+    def test_live_sec_public_companies_when_reachable():
+        from services.providers.sec import lookup_sec
+    
+        async def _run():
+            return (
+                await lookup_sec("Microsoft"),
+                await lookup_sec("Apple"),
+                await lookup_sec("Nvidia"),
+                await lookup_sec("Cargill", aliases=["CARGILL, INCORPORATED"]),
+            )
+    
+        try:
+            microsoft, apple, nvidia, cargill = asyncio.run(_run())
+        except Exception as exc:
+            pytest.skip(f"SEC not reachable: {type(exc).__name__}")
+        if microsoft.error_code in {"TIMEOUT", "RATE_LIMIT", "BLOCKED", "HTTP_ERROR", "PROXYERROR"}:
+            pytest.skip(f"SEC blocked: {microsoft.error_code}")
+>       assert microsoft.selected is not None
+E       AssertionError: assert None is not None
+E        +  where None = SecLookup(selected=None, status='unavailable', error_code='IMPORTERROR', retrieved_at='2026-09-20T04:29:03.136274+00:00').selected
+
+tests/test_sec.py:199: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"ts":1789878543.136,"level":"WARNING","logger":"privatelens.sec","message":"[SEC] CIK lookup failed query='Microsoft' error=ImportError"}
+{"ts":1789878543.138,"level":"WARNING","logger":"privatelens.sec","message":"[SEC] CIK lookup failed query='Apple' error=ImportError"}
+{"ts":1789878543.14,"level":"WARNING","logger":"privatelens.sec","message":"[SEC] CIK lookup failed query='Nvidia' error=ImportError"}
+{"ts":1789878543.143,"level":"WARNING","logger":"privatelens.sec","message":"[SEC] CIK lookup failed query='Cargill' error=ImportError"}
+------------------------------ Captured log call -------------------------------
+WARNING  privatelens.sec:sec.py:494 [SEC] CIK lookup failed query='Microsoft' error=ImportError
+WARNING  privatelens.sec:sec.py:494 [SEC] CIK lookup failed query='Apple' error=ImportError
+WARNING  privatelens.sec:sec.py:494 [SEC] CIK lookup failed query='Nvidia' error=ImportError
+WARNING  privatelens.sec:sec.py:494 [SEC] CIK lookup failed query='Cargill' error=ImportError
+=============================== warnings summary ===============================
+../../../../../root/.local/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /root/.local/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+../../../../../root/.local/lib/python3.12/site-packages/starlette/testclient.py:53
+  /root/.local/lib/python3.12/site-packages/starlette/testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_production_config.py::test_free_production_stack_is_valid
+FAILED tests/test_production_config.py::test_licensed_mode_without_credentials_falls_back_to_public
+FAILED tests/test_production_config.py::test_hybrid_mode_without_credentials_falls_back_to_public
+FAILED tests/test_production_config.py::test_licensed_mode_requires_https_when_credentials_are_present
+FAILED tests/test_production_config.py::test_validated_release_requires_documented_approval
+FAILED tests/test_production_config.py::test_validated_release_accepts_governance_metadata
+FAILED tests/test_sec.py::test_live_sec_public_companies_when_reachable - Ass...
+7 failed, 104 passed, 1 skipped, 2 warnings in 4.97s

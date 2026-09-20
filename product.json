@@ -1,0 +1,18 @@
+{
+  "brand": {"name": "PrivateLens", "score": "PrivateScore", "status": "Temporary names pending trademark review"},
+  "stage": "Research MVP with pilot workflow foundations; deployment unverified",
+  "capabilities": [
+    {"name": "Public evidence collection", "status": "LIVE", "note": "Implemented; availability varies by source and entity. Deployment not verified."},
+    {"name": "Entity resolution", "status": "LIVE", "note": "Ambiguous and non-company entities are gated; not an authoritative registry for all companies."},
+    {"name": "Evidence-weighted research score", "status": "LIVE", "note": "Not a credit rating or default probability; empirical outcomes not validated."},
+    {"name": "Saved companies and history", "status": "LIVE", "note": "Individual accounts only."},
+    {"name": "CSV bulk screening", "status": "PILOT", "note": "100 rows, durable resumable progress; browser drives sequential processing."},
+    {"name": "Weekly reevaluation", "status": "ARCHITECTED", "note": "Durable scheduler interface and in-app events; external scheduler not activated."},
+    {"name": "Customer API", "status": "PILOT", "note": "Account-scoped public-evidence keys, score:read scope, 1000-call lifetime quota."},
+    {"name": "Team workspaces", "status": "PLANNED", "note": "No organizations, memberships, or multi-user roles."},
+    {"name": "Licensed commercial evidence", "status": "ARCHITECTED", "note": "Contracts, granular permissions, retention operations and vendor access required."},
+    {"name": "Consented accounting evidence", "status": "PLANNED", "note": "Codat excluded until per-account consent isolation is implemented."},
+    {"name": "Predictive default probability", "status": "PLANNED", "note": "No labeled outcome validation; not available."},
+    {"name": "Company correction review", "status": "PILOT", "note": "Authenticated report disputes, operator review with append-only review history."}
+  ]
+}

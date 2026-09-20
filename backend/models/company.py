@@ -26,7 +26,7 @@ class CompanySearch(Base):
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     coverage: Mapped[float | None] = mapped_column(Float, nullable=True)
     query_type: Mapped[str] = mapped_column(String(30), default="score", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=utc_now, index=True)
 
     user = relationship("User", back_populates="searches")
 
@@ -45,8 +45,8 @@ class SavedCompany(Base):
     scoring_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     tags: Mapped[list | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=utc_now)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=utc_now, onupdate=utc_now)
 
     user = relationship("User", back_populates="saved_companies")
 
@@ -68,6 +68,6 @@ class CompanyReport(Base):
     model_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
     input_snapshot_hash: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
     evidence_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=utc_now, index=True)
 
     user = relationship("User", back_populates="reports")

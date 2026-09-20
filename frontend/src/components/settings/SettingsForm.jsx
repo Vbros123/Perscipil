@@ -18,11 +18,11 @@ export default function SettingsForm({ values, setValues, onSubmit, loading }) {
         />
       </label>
       <label className="switch-row">
-        <span>Email alerts</span>
+        <span>Email alerts preference (delivery not active)</span>
         <input type="checkbox" checked={Boolean(values.email_alerts)} onChange={(event) => setValues({ ...values, email_alerts: event.target.checked })} />
       </label>
       <label className="switch-row">
-        <span>Weekly digest</span>
+        <span>Weekly digest preference (delivery not active)</span>
         <input type="checkbox" checked={Boolean(values.weekly_digest)} onChange={(event) => setValues({ ...values, weekly_digest: event.target.checked })} />
       </label>
       <label className="switch-row">

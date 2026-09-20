@@ -23,7 +23,7 @@ def _send_email(to_email: str, subject: str, text_body: str, html_body: str | No
         return
 
     if settings.EMAIL_DELIVERY_MODE == "console":
-        logger.info("email.console to=%s subject=%s body=%s", to_email, subject, text_body)
+        logger.info("email.console delivery suppressed; configure a local mail sink for development")
         return
 
     if settings.EMAIL_DELIVERY_MODE == "resend":

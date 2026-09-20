@@ -76,6 +76,7 @@ export default function DataSources({ result }) {
                 return (
                   <div key={item.key || item.source} className="source-row">
                     <strong>{item.source}</strong>
+                    {/^https?:\/\//.test(item.sourceUrl || "") && <a href={item.sourceUrl} target="_blank" rel="noreferrer">Source record</a>}
                     <Badge tone={status.tone}>{status.label}</Badge>
                     <span>{quality}</span>
                     {match && <span className="source-match">{match}</span>}
@@ -88,6 +89,7 @@ export default function DataSources({ result }) {
           </div>
         ))}
       </div>
+      <p className="muted">Wikipedia text is attributed to Wikipedia contributors; consult the linked article and its history. <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a> applies where specified by the source. Data may be excerpted or transformed.</p>
     </section>
   )
 }

@@ -3,6 +3,20 @@ from __future__ import annotations
 
 from collections import defaultdict
 import json
+import re
+from contextvars import ContextVar
+request_id_context = ContextVar("request_id", default=None)
+
+def redact(value):
+    text = str(value)
+    text = re.sub(r"(?i)(bearer|password|token|api[_-]?key|secret)([\s=:]+)[^\s,;]+", r"\1\2[REDACTED]", text)
+    return re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "[EMAIL]", text)
+
+def scrub_sentry(event, hint):
+    for key in ("request", "user", "breadcrumbs", "extra"):
+        event.pop(key, None)
+    return event
+
 import logging
 import time
 from threading import Lock
@@ -19,10 +33,11 @@ class JsonFormatter(logging.Formatter):
             "ts": round(time.time(), 3),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "request_id": request_id_context.get(),
+            "message": redact(record.getMessage()),
         }
         if record.exc_info:
-            payload["exception"] = self.formatException(record.exc_info)
+            payload["exception"] = redact(self.formatException(record.exc_info))
         return json.dumps(payload, separators=(",", ":"))
 
 
@@ -46,6 +61,10 @@ def configure_sentry() -> None:
 
     sentry_sdk.init(
         dsn=settings.SENTRY_DSN,
+        send_default_pii=False,
+        include_local_variables=False,
+        before_send=scrub_sentry,
+        before_send_transaction=scrub_sentry,
         environment=settings.ENVIRONMENT,
         release=f"privatelens-api@{settings.APP_VERSION}",
         traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,

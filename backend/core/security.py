@@ -5,7 +5,7 @@ import hashlib
 import secrets
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 from jwt.exceptions import PyJWTError
@@ -77,6 +77,7 @@ def _decode_payload(token: str) -> dict:
             algorithms=[settings.JWT_ALGORITHM],
             issuer=settings.JWT_ISSUER,
             audience=settings.JWT_AUDIENCE,
+            options={"require": ["sub", "exp", "iat", "iss", "aud", "typ", "ver"]},
         )
     except (PyJWTError, ValueError):
         raise HTTPException(
@@ -89,19 +90,24 @@ def _user_from_payload(payload: dict, db: Session) -> User:
     subject = payload.get("sub")
     if not subject:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token subject.")
+    if payload.get("typ") != "access" or not isinstance(subject, str) or not subject.isdecimal():
+        raise HTTPException(status_code=401, detail="Invalid session.")
     user = db.get(User, int(subject))
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found.")
     token_version = payload.get("ver")
-    if token_version is not None and int(token_version) != user.token_version:
+    if not isinstance(token_version, int) or token_version != user.token_version:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired.")
     return user
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: Session = Depends(get_db),
 ) -> User:
+    if credentials is None and settings.COOKIE_AUTH and request.cookies.get(settings.SESSION_COOKIE_NAME):
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=request.cookies[settings.SESSION_COOKIE_NAME])
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -112,6 +118,7 @@ def get_current_user(
 
 
 def get_optional_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: Session = Depends(get_db),
 ) -> User | None:
@@ -121,6 +128,8 @@ def get_optional_user(
     request: these endpoints already serve unauthenticated callers, and a missing
     header and an unusable header should not behave differently.
     """
+    if credentials is None and settings.COOKIE_AUTH and request.cookies.get(settings.SESSION_COOKIE_NAME):
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=request.cookies[settings.SESSION_COOKIE_NAME])
     if credentials is None or not credentials.credentials.strip():
         return None
     try:

@@ -1,3 +1,5 @@
+> SUPERSEDED reference: consult `cleanup_deployment.md` and `../dataroom-prep/` for current controls. Historical assumptions below may no longer apply.
+
 # Licensed Evidence Gateway Contract v2
 
 PrivateLens calls an isolated gateway so vendor credentials, licensed payloads, rate limits, and contract restrictions do not live in the public scoring API. Version 2 accepts raw observations only. A provider or gateway cannot inject a PrivateLens score.

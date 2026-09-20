@@ -100,7 +100,7 @@ def _data_sources(collection: dict[str, Any]) -> list[dict[str, Any]]:
     cards.append({
         "source": "Licensed credit / cash-flow / payment data",
         "key": "licensed",
-        "status": "live" if licensed_data_enabled() else "not_connected",
+        "status": "configured" if licensed_data_enabled() else "not_connected",
         "evidenceQuality": "high" if licensed_data_enabled() else "none",
         "coverage": "entity" if licensed_data_enabled() else "none",
         "lastRetrieved": None,
@@ -172,7 +172,7 @@ async def score_company(
     company_clean = identity.legal_name
     start = time.perf_counter()
     selected = (selected_title or "").strip() or None
-    cache_key = "score:v11:" + identity.cache_key() + (f":sel:{canonical_key(selected)}" if selected else "")
+    cache_key = "score:v12:" + scoring_config_hash() + ":" + __import__("hashlib").sha256(settings.PROVIDER_PERMISSIONS_JSON.encode()).hexdigest() + ":" + identity.cache_key() + (f":sel:{canonical_key(selected)}" if selected else "")
 
     if not refresh:
         cached = await score_cache.get(cache_key)
@@ -280,10 +280,10 @@ async def score_company(
         "sourceAttempts": source_attempts,
         "licensedData": {
             "connected": licensed_data_enabled(),
-            "status": "live" if licensed_data_enabled() else "not_connected",
+            "status": "configured" if licensed_data_enabled() else "not_connected",
             "title": "Financial / Credit Data",
             "message": (
-                "Licensed credit, cash-flow, and payment evidence is connected."
+                "Licensed gateway configured; consult each signal for retrieved evidence."
                 if licensed_data_enabled()
                 else "Licensed credit, payment, cash-flow, and legal datasets are not currently connected."
             ),
@@ -293,6 +293,7 @@ async def score_company(
         "metadata": {
             "generatedAt": datetime.now(timezone.utc).isoformat(),
             "modelVersion": result["meta"]["model_version"],
+            "scoringConfigHash": scoring_config_hash(),
             "dataVersion": result["meta"]["model_version"],
         },
         "meta": {
@@ -300,9 +301,6 @@ async def score_company(
             "cached": False,
             "computed_at": datetime.now(timezone.utc).isoformat(),
             "input_snapshot_hash": snapshot_hash,
-            "validation_reference": settings.MODEL_VALIDATION_REFERENCE,
-            "validation_sha256": settings.MODEL_VALIDATION_SHA256,
-            "model_approved_by": settings.MODEL_APPROVED_BY,
             "legal_disclaimer": DISCLAIMER,
             "partial_source_failure": bool(collection.get("partial_failure")),
             "warnings": warnings,
@@ -312,6 +310,7 @@ async def score_company(
         "elapsed_seconds": elapsed,
         "resolution": resolved.resolution_payload(),
     }
+    response["reproducibility"] = {"signals": signals, "configuration": scoring_configuration(), "resolution_confidence": resolved.resolution_confidence, "model_release_stage": settings.MODEL_RELEASE_STAGE}
     response["report"] = build_company_report(response)
     await score_cache.set(cache_key, response)
     logger.info("[Report] Generated successfully for %r score=%s", response["company_name"], response["private_score"])
@@ -408,3 +407,17 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
         "data_version": score_data.get("metadata", {}).get("dataVersion") or score_data.get("meta", {}).get("model_version"),
         "disclaimer": DISCLAIMER,
     }
+
+def scoring_configuration():
+    from services.evidence import SIGNAL_SPECS
+    from services import scorer
+    import hashlib
+    from pathlib import Path
+    return {"signals": SIGNAL_SPECS, "quality": scorer.QUALITY_MULTIPLIER,
+            "supporting_cap": scorer.MAX_SUPPORTING_SHARE, "public_max": scorer.PUBLIC_ONLY_MAX,
+            "ceiling_floor": scorer.CEILING_FLOOR, "ceiling_exponent": scorer.CEILING_EXP,
+            "scorer_sha256": hashlib.sha256(Path(scorer.__file__).read_bytes()).hexdigest()}
+
+def scoring_config_hash():
+    import hashlib, json
+    return hashlib.sha256(json.dumps(scoring_configuration(),sort_keys=True).encode()).hexdigest()

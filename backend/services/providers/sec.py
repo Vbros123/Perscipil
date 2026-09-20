@@ -28,12 +28,12 @@ SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SEC_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
 SEC_FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
 SEC_HEADERS = {
-    "User-Agent": "PrivateLens/2.0 (company research; https://privatelens.io; research@privatelens.io)",
+    "User-Agent": get_settings().PUBLIC_DATA_USER_AGENT,
     "Accept-Encoding": "gzip, deflate",
     "Host": "www.sec.gov",
 }
 DATA_SEC_HEADERS = {
-    "User-Agent": "PrivateLens/2.0 (company research; https://privatelens.io; research@privatelens.io)",
+    "User-Agent": get_settings().PUBLIC_DATA_USER_AGENT,
     "Accept-Encoding": "gzip, deflate",
     "Host": "data.sec.gov",
 }

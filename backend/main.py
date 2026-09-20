@@ -42,12 +42,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="PrivateLens API",
-    description="Private company financial health scoring, watchlists, reports, and user workspaces.",
+    description="Evidence-weighted company research, saved reports, and individual accounts.",
     version=settings.APP_VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if settings.is_production else "/docs",
+    redoc_url=None if settings.is_production else "/redoc",
+    openapi_url=None if settings.is_production else "/openapi.json",
     lifespan=lifespan,
 )
+
+from core.body_limit import BodyLimitMiddleware
+app.add_middleware(BodyLimitMiddleware)
 
 cors_origins = settings.cors_origins
 trusted_hosts = settings.trusted_hosts
@@ -66,11 +70,33 @@ app.add_middleware(
 @app.middleware("http")
 async def add_timing_header(request: Request, call_next):
     start = time.perf_counter()
-    request_id = request.headers.get("x-request-id") or secrets.token_hex(12)
-    response = await call_next(request)
+    request_id = secrets.token_hex(12)
+    if request.url.path in {"/api/cache/stats", "/api/providers", "/api/compliance/status"} and settings.is_production:
+        supplied = request.headers.get("authorization", "").removeprefix("Bearer ")
+        if not settings.METRICS_TOKEN or not secrets.compare_digest(supplied, settings.METRICS_TOKEN):
+            return JSONResponse(status_code=404, content={"detail": "Not found"})
+    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+        origin = request.headers.get("origin")
+        if origin and origin not in settings.cors_origins and settings.cors_origins != ["*"]:
+            return JSONResponse(status_code=403, content={"detail": "Origin not allowed"})
+        if settings.COOKIE_AUTH and request.cookies.get(settings.SESSION_COOKIE_NAME) and not origin:
+            return JSONResponse(status_code=403, content={"detail": "Origin required for cookie requests"})
+    if request.url.path.startswith("/api/auth/") and request.method == "POST":
+        from core.limiter import auth_limiter
+        allowed, retry = await auth_limiter.is_allowed(request.client.host if request.client else "unknown")
+        if not allowed:
+            return JSONResponse(status_code=429, content={"detail": "Too many authentication attempts"}, headers={"Retry-After": str(retry)})
+    from core.observability import request_id_context
+    context_token = request_id_context.set(request_id)
+    try:
+        response = await call_next(request)
+    finally:
+        request_id_context.reset(context_token)
     elapsed = time.perf_counter() - start
     ms = round(elapsed * 1000, 1)
-    metrics.observe(request.method, request.url.path, response.status_code, elapsed)
+    metrics.observe(request.method, getattr(request.scope.get("route"), "path", "/unmatched"), response.status_code, elapsed)
+    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'" if settings.is_production else "default-src 'self' https: 'unsafe-inline'"
+    response.headers["Cache-Control"] = "no-store"
     response.headers["X-Response-Time"] = f"{ms}ms"
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -84,10 +110,12 @@ async def add_timing_header(request: Request, call_next):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled error: {exc}", exc_info=True)
+    logger.error("Unhandled error type=%s", type(exc).__name__)
     return JSONResponse(status_code=500, content={"detail": "Internal server error."})
 
 
+from routers.workflows import router as workflows_router
+app.include_router(workflows_router)
 app.include_router(auth_router)
 app.include_router(compliance_router)
 app.include_router(users_router)
@@ -102,7 +130,7 @@ app.include_router(compare_router)
 def root():
     return {
         "product": "PrivateLens",
-        "tagline": "Private company financial health intelligence",
+        "tagline": "Evidence-weighted company research",
         "version": settings.APP_VERSION,
         "docs": "/docs",
         "endpoints": [
@@ -121,19 +149,7 @@ def root():
 
 @app.get("/api/health")
 def health():
-    return {
-        "status": "ok",
-        "version": settings.APP_VERSION,
-        "environment": settings.ENVIRONMENT,
-        "git_commit": (os.environ.get("RENDER_GIT_COMMIT") or os.environ.get("GIT_COMMIT") or "")[:40] or None,
-        "database": "postgres" if settings.DATABASE_URL.startswith(("postgres://", "postgresql://")) else "sqlite",
-        "email": settings.EMAIL_DELIVERY_MODE,
-        "observability": {"sentry": bool(settings.SENTRY_DSN), "metrics": bool(settings.METRICS_TOKEN)},
-        "data_mode": settings.DATA_MODE,
-        "effective_data_mode": settings.effective_data_mode,
-        "licensed_data": bool(settings.licensed_credentials_present and settings.effective_data_mode in {"licensed", "hybrid"}),
-        "model_release_stage": settings.MODEL_RELEASE_STAGE,
-    }
+    return {"status": "ok"}
 
 
 @app.get("/api/metrics", response_class=PlainTextResponse)
@@ -142,3 +158,20 @@ def get_metrics(request: Request):
     if settings.METRICS_TOKEN and secrets.compare_digest(provided, settings.METRICS_TOKEN):
         return metrics.render_prometheus()
     return PlainTextResponse("not found\n", status_code=404)
+
+@app.get("/.well-known/security.txt", response_class=PlainTextResponse)
+def security_txt():
+    from datetime import datetime, timezone
+    try:
+        expiry = datetime.fromisoformat(settings.SECURITY_EXPIRES.replace("Z", "+00:00"))
+        valid = expiry > datetime.now(timezone.utc)
+    except (ValueError, AttributeError, TypeError):
+        valid = False
+    if not valid or not settings.SECURITY_CONTACT or not settings.SECURITY_CONTACT.startswith(("mailto:", "https://")) or "\n" in settings.SECURITY_CONTACT or "\r" in settings.SECURITY_CONTACT:
+        return PlainTextResponse("Not configured\n", status_code=404)
+    return f"Contact: {settings.SECURITY_CONTACT}\nExpires: {settings.SECURITY_EXPIRES}\nPreferred-Languages: en\n"
+
+@app.get("/api/capabilities")
+def capabilities():
+    from core.capabilities import PRODUCT
+    return PRODUCT

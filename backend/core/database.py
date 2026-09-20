@@ -40,4 +40,12 @@ def init_db() -> None:
     from models.settings import UserSettings  # noqa: F401
     from models.user import AuthAuditEvent, SecurityToken, User  # noqa: F401
 
+    from models import workflows  # noqa: F401
     Base.metadata.create_all(bind=engine)
+
+# SQLite must enforce the same ownership cascade constraints as Postgres.
+if database_url.startswith("sqlite"):
+    from sqlalchemy import event
+    @event.listens_for(engine, "connect")
+    def enable_foreign_keys(connection, _):
+        connection.execute("PRAGMA foreign_keys=ON")

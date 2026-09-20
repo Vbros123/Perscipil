@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     APP_VERSION: str = "4.0.0"
     ENVIRONMENT: Literal["development", "test", "staging", "production"] = "development"
     DEBUG: bool = False
+    POLICIES_PUBLISHED: bool = False
+    TERMS_VERSION: str = "2026-09-20-draft"
+    PRIVACY_VERSION: str = "2026-09-20-draft"
 
     # Persistence
     DATABASE_URL: str = "sqlite:///./privatelens.db"
@@ -22,7 +25,13 @@ class Settings(BaseSettings):
     # Auth
     JWT_SECRET: str = "change-this-in-production"
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRES_MINUTES: int = 60 * 24 * 7
+    JWT_EXPIRES_MINUTES: int = 60
+    COOKIE_AUTH: bool = False
+    SESSION_COOKIE_NAME: str = "privatelens_session"
+    SECURITY_CONTACT: str | None = None
+    SECURITY_EXPIRES: str | None = None
+    PUBLIC_DATA_USER_AGENT: str = "PrivateLens/4.0"
+    RATE_LIMIT_BACKEND: Literal["memory", "database"] = "memory"
     JWT_ISSUER: str = "privatelens-api"
     JWT_AUDIENCE: str = "privatelens-dashboard"
     PASSWORD_RESET_TOKEN_MINUTES: int = 30
@@ -37,7 +46,7 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USERNAME: str | None = None
     SMTP_PASSWORD: str | None = None
-    SMTP_FROM_EMAIL: str = "security@privatelens.com"
+    SMTP_FROM_EMAIL: str = ""
     SMTP_FROM_NAME: str = "PrivateLens Security"
     SMTP_USE_TLS: bool = True
     RESEND_API_KEY: str | None = None
@@ -52,6 +61,8 @@ class Settings(BaseSettings):
 
     # Public mode uses the built-in open-data collectors. Licensed mode adds
     # paid-provider overrides through the vendor-normalization gateway.
+    PROVIDER_PERMISSIONS_JSON: str = "{}"
+    REPORT_RETENTION_DAYS: int = 30
     DATA_MODE: Literal["public", "licensed", "hybrid"] = "public"
     LICENSED_DATA_GATEWAY_URL: str | None = None
     LICENSED_DATA_API_KEY: str | None = None
@@ -130,6 +141,12 @@ class Settings(BaseSettings):
     def validate_runtime(self) -> None:
         if not self.is_production:
             return
+        if self.DEBUG or self.AUTH_TOKEN_RETURN_IN_RESPONSE:
+            raise RuntimeError("Debug and security-token responses must be disabled in production.")
+        if self.RATE_LIMIT_BACKEND != "database":
+            raise RuntimeError("Production requires shared database rate limiting.")
+        if self.COOKIE_AUTH and any(not origin.startswith("https://") for origin in self.cors_origins):
+            raise RuntimeError("Cookie authentication requires HTTPS origins in production.")
         if self.JWT_SECRET == "change-this-in-production" or len(self.JWT_SECRET) < 32:
             raise RuntimeError("JWT_SECRET must be set to a strong random value in production.")
         if self.ALLOWED_ORIGINS == "*":
@@ -138,6 +155,8 @@ class Settings(BaseSettings):
             raise RuntimeError("ALLOWED_HOSTS must not be '*' in production.")
         if not self.DATABASE_URL.startswith(("postgres://", "postgresql://")):
             raise RuntimeError("DATABASE_URL must point to managed Postgres in production.")
+        if not self.SMTP_FROM_EMAIL:
+            raise RuntimeError("A verified SMTP_FROM_EMAIL is required in production.")
         if self.EMAIL_DELIVERY_MODE == "smtp":
             if not self.SMTP_HOST or not self.SMTP_USERNAME or not self.SMTP_PASSWORD:
                 raise RuntimeError("SMTP_HOST, SMTP_USERNAME, and SMTP_PASSWORD are required for SMTP delivery.")
@@ -148,7 +167,7 @@ class Settings(BaseSettings):
             raise RuntimeError("Production email delivery must use 'smtp' or 'resend'.")
         if not self.METRICS_TOKEN or len(self.METRICS_TOKEN) < 24:
             raise RuntimeError("METRICS_TOKEN must be set to a strong value in production.")
-        if self.DATA_MODE == "licensed" and self.licensed_credentials_present:
+        if self.effective_data_mode in {"licensed", "hybrid"} and self.licensed_credentials_present:
             if not self.LICENSED_DATA_GATEWAY_URL.startswith("https://"):
                 raise RuntimeError("Licensed data gateway must use HTTPS in production.")
         if self.MODEL_RELEASE_STAGE == "validated":

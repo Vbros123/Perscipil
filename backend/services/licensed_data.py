@@ -20,6 +20,7 @@ def enabled() -> bool:
     return bool(
         settings.effective_data_mode in {"licensed", "hybrid"}
         and settings.licensed_credentials_present
+        and bool(__import__("services.permissions", fromlist=["allowed_providers"]).allowed_providers())
     )
 
 
@@ -32,7 +33,7 @@ async def fetch_evidence(identity: CompanyIdentity) -> GatewayEvidenceResponse |
         "schema": "privatelens.evidence.request.v2",
         "request_id": request_id,
         "entity": identity.model_dump(mode="json", exclude_none=True),
-        "providers": ["creditsafe", "middesk", "codat"],
+        "providers": __import__("services.permissions", fromlist=["allowed_providers"]).allowed_providers(),
         "required_permitted_use": "company_intelligence",
     }
     headers = {
@@ -63,6 +64,8 @@ async def fetch_evidence(identity: CompanyIdentity) -> GatewayEvidenceResponse |
     if parsed.request_id != request_id:
         logger.warning("licensed_data.request_id_mismatch request_id=%s", request_id)
         return None
+    from services.permissions import allowed_providers
+    parsed.bundles = [b for b in parsed.bundles if b.provider.key in allowed_providers()]
     return parsed
 
 

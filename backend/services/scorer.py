@@ -408,6 +408,7 @@ def compute_score(
             "evidenceQuality": quality,
             "evidence_role": evidence_role,
             "signal_role": role,
+            "reason_code": "USED_EVIDENCE" if used else ("NOT_APPLICABLE" if status == "not_applicable" else "MISSING_OR_UNUSABLE_EVIDENCE" if weight else "CONTEXT_ONLY"),
         })
 
     licensed_used = any(row["track"] == "licensed" for row in used_rows)

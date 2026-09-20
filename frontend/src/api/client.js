@@ -9,17 +9,12 @@ export class ApiError extends Error {
   }
 }
 
-export function getToken() {
-  return localStorage.getItem('privatelens.token')
-}
+let accessToken = null
+// Remove legacy persistent credentials. New bearer sessions last only in memory.
+localStorage.removeItem('privatelens.token')
+export function getToken() { return accessToken }
 
-export function setToken(token) {
-  if (token) {
-    localStorage.setItem('privatelens.token', token)
-  } else {
-    localStorage.removeItem('privatelens.token')
-  }
-}
+export function setToken(token) { accessToken = token || null }
 
 export async function apiRequest(path, options = {}) {
   const headers = new Headers(options.headers || {})
@@ -36,6 +31,7 @@ export async function apiRequest(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
+    credentials: "include",
   })
 
   if (response.status === 204) {

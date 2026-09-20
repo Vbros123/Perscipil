@@ -54,6 +54,8 @@ async def _run_score(
     refresh: bool = False,
     selected_title: str | None = None,
 ):
+    if licensed_data_enabled() and current_user is None:
+        raise HTTPException(401, "Authentication required for licensed reports")
     await _check_rate_limit(request)
     try:
         response = await score_company(
@@ -68,8 +70,6 @@ async def _run_score(
 
     if current_user is not None:
         store_company_event(db, current_user, response, query_type="score")
-    else:
-        history_store.add(identity.legal_name, response["private_score"], response["rating"], response["color"])
     return response
 
 

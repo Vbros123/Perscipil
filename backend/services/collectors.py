@@ -25,7 +25,7 @@ from services.resolver import (
 
 settings = get_settings()
 
-HEADERS = {"User-Agent": "PrivateLens/2.0 research@privatelens.io"}
+HEADERS = {"User-Agent": get_settings().PUBLIC_DATA_USER_AGENT}
 
 # USASpending returns awards page by page. Anything derived from one page is a
 # floor across the largest awards, not a lifetime total.

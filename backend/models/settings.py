@@ -21,7 +21,7 @@ class UserSettings(Base):
     email_alerts: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     weekly_digest: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     simulated_data_labels: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=utc_now)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=utc_now, onupdate=utc_now)
 
     user = relationship("User", back_populates="settings")

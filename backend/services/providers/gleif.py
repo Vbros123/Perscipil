@@ -24,7 +24,7 @@ settings = get_settings()
 GLEIF_API = "https://api.gleif.org/api/v1"
 GLEIF_ACCEPT = "application/vnd.api+json"
 HEADERS = {
-    "User-Agent": "PrivateLens/2.0 research@privatelens.io",
+    "User-Agent": get_settings().PUBLIC_DATA_USER_AGENT,
     "Accept": GLEIF_ACCEPT,
 }
 LEI_RE = re.compile(r"^[A-Z0-9]{20}$")

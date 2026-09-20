@@ -1,3 +1,4 @@
+import { BRAND } from '../../lib/brand'
 import {
   BarChart3,
   BookmarkCheck,
@@ -12,7 +13,6 @@ import {
 } from 'lucide-react'
 import { NavLink, useNavigate } from '../../router'
 
-import { API_BASE } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import TopBar from './TopBar'
 
@@ -21,8 +21,10 @@ const sections = [
     label: 'Research',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/batches', label: 'Bulk screening', icon: BarChart3 },
       { to: '/compare', label: 'Compare', icon: BarChart3 },
       { to: '/watchlist', label: 'Watchlist', icon: BookmarkCheck },
+      { to: '/research-review', label: 'Research review', icon: BookmarkCheck },
       { to: '/history', label: 'History', icon: History },
     ],
   },
@@ -51,7 +53,7 @@ export default function AppShell({ children }) {
         <NavLink to="/dashboard" className="brand">
           <span className="brand-mark"><ScanSearch size={17} /></span>
           <span>
-            <strong>PrivateLens</strong>
+            <strong>{BRAND.name}</strong>
             <small>Company intelligence</small>
           </span>
         </NavLink>
@@ -72,7 +74,7 @@ export default function AppShell({ children }) {
           ))}
         </nav>
         <div className="side-footer">
-          <a className="api-chip" href={`${API_BASE}/docs`} target="_blank" rel="noreferrer">
+          <a className="api-chip" href="/developer" target="_blank" rel="noreferrer">
             API documentation
           </a>
           <NavLink className="profile-chip" to="/account">

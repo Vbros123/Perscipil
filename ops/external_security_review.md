@@ -1,3 +1,5 @@
+> SUPERSEDED reference: consult `cleanup_deployment.md` and `../dataroom-prep/` for current controls. Historical assumptions below may no longer apply.
+
 # External Security Review Scope
 
 PrivateLens should not be described as bank-grade until an independent reviewer validates the production deployment.

@@ -1,0 +1,14 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> privatelens-frontend@2.0.0 build
+> vite build
+
+vite v8.2.0 building client environment for production...
+[2Ktransforming...✓ 1827 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.97 kB │ gzip:  0.52 kB
+dist/assets/index-GXiDNwa0.css   28.17 kB │ gzip:  6.05 kB
+dist/assets/index-Cma5AGTq.js   230.04 kB │ gzip: 69.75 kB
+
+✓ built in 519ms

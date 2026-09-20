@@ -13,7 +13,7 @@ from core.config import get_settings
 
 logger = logging.getLogger("privatelens.resolver")
 settings = get_settings()
-HEADERS = {"User-Agent": "PrivateLens/2.0 research@privatelens.io"}
+HEADERS = {"User-Agent": get_settings().PUBLIC_DATA_USER_AGENT}
 
 LEGAL_SUFFIXES = frozenset({
     "inc", "incorporated", "llc", "ltd", "limited", "corp", "corporation",

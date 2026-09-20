@@ -20,10 +20,13 @@ logger = logging.getLogger("privatelens.compare")
 @router.get("/compare")
 async def compare(
     request: Request,
-    companies: str = Query(..., description="Comma-separated list of 2-4 company names"),
+    companies: str = Query(..., max_length=724, description="Comma-separated list of 2-4 company names"),
     current_user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
+    from services.licensed_data import enabled
+    if enabled() and current_user is None:
+        raise HTTPException(401, "Authentication required for licensed reports")
     names: list[str] = []
     seen: set[str] = set()
     for raw_name in companies.split(","):

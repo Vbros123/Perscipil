@@ -8,7 +8,7 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [token, setTokenState] = useState(() => getToken())
   const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(Boolean(getToken()))
+  const [loading, setLoading] = useState(true)
   const [flashMessage, setFlashMessage] = useState('')
 
   const persistSession = useCallback((session) => {
@@ -19,10 +19,6 @@ export function AuthProvider({ children }) {
   }, [])
 
   const refreshUser = useCallback(async () => {
-    if (!getToken()) {
-      setLoading(false)
-      return null
-    }
     try {
       const nextUser = await authApi.getMe()
       setUser(nextUser)
@@ -66,7 +62,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async (remote = true) => {
     if (remote) {
       try {
-        if (getToken()) await authApi.logout()
+        await authApi.logout()
       } catch {
         // Local logout still wins if the network is gone or the token is already invalid.
       }
@@ -86,7 +82,7 @@ export function AuthProvider({ children }) {
     token,
     user,
     loading,
-    isAuthenticated: Boolean(token && user),
+    isAuthenticated: Boolean(user),
     signup,
     login,
     logout,

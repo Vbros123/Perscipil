@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta, timezone
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from core.config import get_settings
@@ -48,9 +48,6 @@ def aware(value: datetime | None) -> datetime | None:
 
 
 def client_ip(request: Request) -> str | None:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
     return request.client.host if request.client else None
 
 
@@ -94,6 +91,7 @@ def consume_security_token(db: Session, token: str, token_type: str) -> Security
             SecurityToken.token_type == token_type,
             SecurityToken.used_at.is_(None),
         )
+        .with_for_update()
         .first()
     )
     if record is None or aware(record.expires_at) < utc_now():
@@ -103,13 +101,17 @@ def consume_security_token(db: Session, token: str, token_type: str) -> Security
     return record
 
 
-def session_for(user: User) -> AuthResponse:
+def session_for(user: User, response: Response) -> AuthResponse:
     token = create_access_token(str(user.id), user.token_version)
-    return AuthResponse(access_token=token, user=user)
+    if settings.COOKIE_AUTH:
+        response.set_cookie(settings.SESSION_COOKIE_NAME, token, httponly=True, secure=settings.is_production,
+                            samesite="none" if settings.is_production else "lax",
+                            max_age=settings.JWT_EXPIRES_MINUTES * 60, path="/")
+    return AuthResponse(access_token=token if not settings.COOKIE_AUTH or settings.AUTH_TOKEN_RETURN_IN_RESPONSE else "", user=user)
 
 
 @router.post("/signup", response_model=AuthResponse, status_code=201)
-def signup(payload: SignupRequest, request: Request, db: Session = Depends(get_db)):
+def signup(payload: SignupRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     email = payload.email.lower()
     existing = db.query(User).filter(User.email == email).first()
     if existing:
@@ -143,11 +145,11 @@ def signup(payload: SignupRequest, request: Request, db: Session = Depends(get_d
     except Exception as exc:
         logger.error("signup_verification_email_failed user_id=%s error=%s", user.id, exc)
 
-    return session_for(user)
+    return session_for(user, response)
 
 
 @router.post("/login", response_model=AuthResponse)
-def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email.lower()).first()
     if user is None:
         audit(db, "login_failed_unknown_user", request, email=payload.email.lower())
@@ -184,7 +186,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     db.add(user)
     db.commit()
     db.refresh(user)
-    return session_for(user)
+    return session_for(user, response)
 
 
 @router.get("/me", response_model=UserOut)
@@ -195,6 +197,7 @@ def me(current_user: User = Depends(get_current_user)):
 @router.post("/logout", response_model=AuthMessage)
 def logout(
     request: Request,
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -205,6 +208,7 @@ def logout(
     audit(db, "logout", request, user=current_user)
     db.add(current_user)
     db.commit()
+    response.delete_cookie(settings.SESSION_COOKIE_NAME, path="/", secure=settings.is_production, samesite="none" if settings.is_production else "lax")
     return {"message": "Logged out."}
 
 

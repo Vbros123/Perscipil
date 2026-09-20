@@ -1,70 +1,18 @@
-import { Code2, Copy, ExternalLink } from 'lucide-react'
-
-import { API_BASE } from '../api/client'
-import Badge from '../components/common/Badge'
+import { useEffect, useState } from 'react'
+import { API_BASE, apiRequest } from '../api/client'
 import PageHeader from '../components/common/PageHeader'
-
-const endpoints = [
-  ['POST', '/api/auth/signup', 'Create account'],
-  ['POST', '/api/auth/login', 'Issue bearer token'],
-  ['POST', '/api/auth/logout', 'Record logout audit event'],
-  ['POST', '/api/auth/change-password', 'Rotate password and invalidate sessions'],
-  ['POST', '/api/auth/request-password-reset', 'Issue reset instructions'],
-  ['POST', '/api/auth/reset-password', 'Reset password with token'],
-  ['POST', '/api/auth/request-email-verification', 'Issue verification instructions'],
-  ['POST', '/api/auth/verify-email', 'Verify email with token'],
-  ['GET', '/api/auth/me', 'Current user'],
-  ['GET', '/api/compliance/status', 'Production readiness status'],
-  ['GET', '/api/metrics', 'Bearer-token protected metrics'],
-  ['GET', '/api/score?company=NAME', 'Backward-compatible report'],
-  ['POST', '/api/score', 'Legal-entity report request'],
-  ['GET', '/api/providers', 'Licensed provider readiness'],
-  ['GET', '/api/compare?companies=A,B', 'Peer comparison'],
-  ['GET', '/api/watchlist', 'Saved companies'],
-  ['GET', '/api/history', 'Search history'],
-  ['PATCH', '/api/settings', 'Workspace settings'],
-]
+import ErrorNotice from '../components/common/ErrorNotice'
 
 export default function Developer() {
-  const copy = (value) => navigator.clipboard?.writeText(value)
-
-  return (
-    <div className="page-stack">
-      <PageHeader
-        eyebrow="API"
-        title="Developer"
-        actions={<a className="btn btn-ghost" href={`${API_BASE}/docs`} target="_blank" rel="noreferrer">Swagger <ExternalLink size={16} /></a>}
-      >
-        Use bearer tokens from login/signup for authenticated workspace endpoints.
-      </PageHeader>
-      <section className="panel">
-        <div className="panel-head">
-          <div><div className="eyebrow">Base URL</div><h2>{API_BASE}</h2></div>
-          <button className="icon-button" onClick={() => copy(API_BASE)} aria-label="Copy API base"><Copy size={16} /></button>
-        </div>
-        <pre className="code-block">{`curl -X POST "${API_BASE}/api/score" \\
-  -H "Authorization: Bearer <token>" \\
-  -H "Content-Type: application/json" \\
-  -d '{"legal_name":"Acme Manufacturing LLC","country_code":"US","registration_number":"A-123"}'`}</pre>
-      </section>
-      <section className="table-card">
-        <table>
-          <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
-          <tbody>
-            {endpoints.map(([method, path, description]) => (
-              <tr key={`${method}-${path}`}>
-                <td><Badge tone={method === 'GET' ? 'positive' : 'accent'}>{method}</Badge></td>
-                <td className="mono">{path}</td>
-                <td className="muted">{description}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-      <section className="notice notice-info">
-        <Code2 size={17} />
-        Only entity-resolved, fresh licensed observations can set <code>used_in_score=true</code>. Public context and unavailable inputs are excluded.
-      </section>
-    </div>
-  )
+  const [keys,setKeys]=useState([]),[label,setLabel]=useState(''),[secret,setSecret]=useState(''),[error,setError]=useState('')
+  const load=()=>apiRequest('/api/keys').then(setKeys)
+  useEffect(()=>{load().catch(e=>setError(e.message))},[])
+  async function create(e){e.preventDefault();try{const k=await apiRequest('/api/keys',{method:'POST',body:JSON.stringify({label})});setSecret(k.key);setLabel('');await load()}catch(e){setError(e.message)}}
+  return <div className="page-stack"><PageHeader eyebrow="Pilot API" title="Developer">Account-scoped public-evidence API. Each key has score:read scope and a 1,000-request lifetime pilot quota. Licensed report redistribution is disabled.</PageHeader><ErrorNotice message={error}/>
+    <form className="panel form-stack" onSubmit={create}><label>Key label<input value={label} maxLength={80} required onChange={e=>setLabel(e.target.value)}/></label><button className="btn btn-primary">Create key</button></form>
+    {secret && <section className="notice notice-info"><p>Copy this key now. It will not be shown again.</p><code>{secret}</code><button className="btn btn-ghost" onClick={()=>setSecret('')}>Hide key</button></section>}
+    <section className="panel"><h2>Your API keys</h2>{keys.length ? keys.map(k=><div key={k.id}><strong>{k.label}</strong> · {k.calls}/1000 requests · {k.revoked?'Revoked':'Active'} {!k.revoked&&<button className="btn btn-ghost" onClick={async()=>{try{await apiRequest(`/api/keys/${k.id}`,{method:'DELETE'});await load()}catch(e){setError(e.message)}}}>Revoke</button>}</div>):<p>No keys yet.</p>}</section>
+    <pre className="code-block">{`curl -X POST "${API_BASE}/api/v1/score" \\\n  -H "X-API-Key: <your-key>" \\\n  -H "Content-Type: application/json" \\\n  -d '{"legal_name":"Example Company","country_code":"US"}'`}</pre>
+    <p>Rotate a key by creating its replacement, updating your integration, then revoking the old key. A research score is not a default probability or credit rating.</p>
+  </div>
 }

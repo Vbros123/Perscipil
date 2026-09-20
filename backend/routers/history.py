@@ -19,7 +19,7 @@ def get_history(
     db: Session = Depends(get_db),
 ):
     if current_user is None:
-        return {"history": history_store.recent(limit)}
+        return {"history": []}
     return (
         db.query(CompanySearch)
         .filter(CompanySearch.user_id == current_user.id)

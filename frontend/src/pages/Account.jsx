@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import DataControls from '../components/settings/DataControls'
 
 import { changePassword } from '../api/auth'
 import ErrorNotice from '../components/common/ErrorNotice'
@@ -96,6 +97,7 @@ export default function Account() {
         </label>
         <button className="btn btn-primary" disabled={passwordLoading}>{passwordLoading ? 'Updating' : 'Change password'}</button>
       </form>
+      <DataControls />
     </div>
   )
 }

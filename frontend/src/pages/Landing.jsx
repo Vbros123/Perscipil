@@ -1,3 +1,4 @@
+import { BRAND } from '../lib/brand'
 import { ArrowRight, BarChart3, Database, ScanSearch, ShieldCheck, SlidersHorizontal } from 'lucide-react'
 import { Link } from '../router'
 
@@ -17,7 +18,7 @@ export default function Landing() {
       <nav className="public-nav">
         <Link to="/" className="brand">
           <span className="brand-mark"><ScanSearch size={17} /></span>
-          <span><strong>PrivateLens</strong><small>Company intelligence</small></span>
+          <span><strong>{BRAND.name}</strong><small>Company intelligence</small></span>
         </Link>
         <div>
           <Link to="/login" className="btn btn-ghost">Log in</Link>
@@ -28,11 +29,10 @@ export default function Landing() {
       <section className="landing-hero">
         <div className="hero-copy">
           <div className="eyebrow">Private-company diligence</div>
-          <h1>Financial health ratings, gated by evidence.</h1>
+          <h1>Private-company research, grounded in evidence.</h1>
           <p>
             PrivateLens screens private companies with a deterministic scoring model.
-            A rating is only released when entity identity, evidence coverage, provider
-            diversity, and model validation all pass — otherwise it says so.
+            Public research scores reflect available evidence and coverage. They are not validated default predictions or formal credit ratings.
           </p>
           <div className="hero-actions">
             <Link to="/signup" className="btn btn-primary">Start researching <ArrowRight size={15} /></Link>
@@ -40,7 +40,7 @@ export default function Landing() {
           </div>
           <div className="trust-row">
             <span><ShieldCheck size={14} /> Evidence release gates</span>
-            <span><Database size={14} /> Licensed + public sources</span>
+            <span><Database size={14} /> Public evidence; licensed feeds planned</span>
             <span><SlidersHorizontal size={14} /> Deterministic model</span>
           </div>
         </div>
@@ -51,7 +51,7 @@ export default function Landing() {
               <strong>Acme Manufacturing LLC</strong>
               <small>US &middot; Registration A-4821</small>
             </div>
-            <span className="badge">Illustrative sample</span>
+            <span className="badge">Hypothetical licensed-data illustration</span>
           </div>
           {/* 0.30*82 + 0.20*74 + 0.20*61 + 0.15*100 + 0.15*88 = 79.8 -> 798 */}
           <div className="sample-score">
@@ -73,15 +73,15 @@ export default function Landing() {
           </div>
           <div className="sample-foot">
             <span>Coverage 100%</span>
-            <span>3 licensed providers</span>
-            <span>All release gates passed</span>
+            <span>Providers require contracts</span>
+            <span>Not a live report</span>
           </div>
         </div>
       </section>
 
       <section className="landing-band">
         {[
-          [ShieldCheck, 'Evidence-gated scoring', 'Entity match, freshness, provider diversity, and model approval are enforced before any rating is released.'],
+          [ShieldCheck, 'Evidence-gated scoring', 'Missing evidence stays missing. Source quality, coverage, and supporting-signal limits constrain the research score.'],
           [Database, 'Transparent provenance', 'Every signal names its source, observation date, and entity-match confidence. Nothing is invented to fill gaps.'],
           [BarChart3, 'Peer comparison', 'Compare up to four companies side by side under the same model and spot outlier risk faster.'],
           [ScanSearch, 'Persistent workspace', 'History, watchlists, saved reports, and settings stay tied to your account across sessions.'],

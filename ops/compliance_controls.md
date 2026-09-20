@@ -1,3 +1,5 @@
+> SUPERSEDED reference: consult `cleanup_deployment.md` and `../dataroom-prep/` for current controls. Historical assumptions below may no longer apply.
+
 # PrivateLens Legal And Compliance Controls
 
 PrivateLens is a research product, not a credit decisioning, lending, investment, legal, or underwriting authority.
