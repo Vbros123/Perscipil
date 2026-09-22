@@ -65,6 +65,9 @@ class DatabaseLimiter:
         self._max, self._window, self.namespace = max_requests, window_seconds, namespace
 
     async def is_allowed(self, identifier, cost=1):
+        return await asyncio.to_thread(self.check, identifier, cost)
+
+    def check(self, identifier, cost=1):
         import hashlib
         from sqlalchemy import delete
         from sqlalchemy.dialects.postgresql import insert as pg_insert

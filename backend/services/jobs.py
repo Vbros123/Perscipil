@@ -6,7 +6,7 @@ import json
 import secrets
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
-from sqlalchemy import select, update, or_, func
+from sqlalchemy import select, update, or_, and_, func
 from core.database import SessionLocal
 from core.tenancy import locked_organization
 from models.organizations import WorkJob, OrganizationResource
@@ -79,7 +79,7 @@ def claim(organization_id):
                 WorkJob.state == "retry",
                 WorkJob.attempts >= MAX_ATTEMPTS,
             )
-            .values(state="failed", error_code="RETRY_EXHAUSTED")
+            .values(state="failed", error_code="RETRY_EXHAUSTED", completed_at=now)
         )
         # At most one in-flight job per workspace, across all cooperating workers.
         if db.scalar(
@@ -220,8 +220,8 @@ async def run_cycle(concurrency=2, scorer=None):
                 select(WorkJob.organization_id)
                 .where(
                     or_(
-                        WorkJob.state.in_(["queued", "retry"]),
-                        WorkJob.state == "running",
+                        and_(WorkJob.state.in_(["queued", "retry"]), WorkJob.available_at <= datetime.now(timezone.utc)),
+                        and_(WorkJob.state == "running", WorkJob.lease_until < datetime.now(timezone.utc)),
                     )
                 )
                 .group_by(WorkJob.organization_id)

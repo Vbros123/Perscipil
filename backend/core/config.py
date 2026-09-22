@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     AUTO_CREATE_TABLES: bool = True
 
     # Auth
+    CONSENT_ENCRYPTION_KEY: str = ""
     MFA_ENCRYPTION_KEY: str | None = None
     JWT_SECRET: str = "change-this-in-production"
     JWT_ALGORITHM: str = "HS256"

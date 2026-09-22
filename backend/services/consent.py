@@ -5,7 +5,14 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, delete
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
-from core.mfa import cipher
+from cryptography.fernet import Fernet
+from core.config import get_settings
+
+def cipher():
+    key = get_settings().CONSENT_ENCRYPTION_KEY
+    if not key:
+        raise HTTPException(503, "Consent encryption key is not configured")
+    return Fernet(key.encode())
 from models.consent import ProviderConsent, ConsentPayload
 
 

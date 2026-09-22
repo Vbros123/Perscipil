@@ -27,6 +27,10 @@ def key_context(request, db, scope):
         raise HTTPException(401, "Invalid workspace API key")
     if scope not in key.scopes:
         raise HTTPException(403, "API key scope required: " + scope)
+    from core.limiter import DatabaseLimiter
+    allowed, retry = DatabaseLimiter(120, 60, "workspace-api").check(str(key.organization_id))
+    if not allowed:
+        raise HTTPException(429, "Workspace API rate limit reached", headers={"Retry-After": str(retry)})
     return key
 
 

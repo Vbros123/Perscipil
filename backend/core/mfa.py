@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timezone
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import HTTPException
-from sqlalchemy import update
+from sqlalchemy import select, update
 from core.config import get_settings
 from core.security import hash_security_token
 from models.mfa import MfaCredential
@@ -36,7 +36,7 @@ def totp(secret, counter):
 
 
 def consume(db, user_id, code, allow_pending=False):
-    row = db.get(MfaCredential, user_id)
+    row = db.scalar(select(MfaCredential).where(MfaCredential.user_id == user_id).with_for_update())
     if not row or (not row.enabled and not allow_pending):
         return False
     expiry = (
@@ -68,13 +68,8 @@ def consume(db, user_id, code, allow_pending=False):
         hashed = hash_security_token(code)
         old = list(row.recovery_hashes)
         if hashed in old:
-            changed = db.execute(
-                update(MfaCredential)
-                .where(
-                    MfaCredential.user_id == user_id,
-                    MfaCredential.recovery_hashes == old,
-                )
-                .values(recovery_hashes=[x for x in old if x != hashed])
-            )
-            return bool(changed.rowcount)
+            # Locked row serializes recovery-code consumption on PostgreSQL.
+            row.recovery_hashes = [x for x in old if x != hashed]
+            db.flush()
+            return True
     return False

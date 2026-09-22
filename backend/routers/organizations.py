@@ -55,7 +55,7 @@ def create(
 @router.get("")
 def list_organizations(user=Depends(get_current_user), db: Session = Depends(get_db)):
     return [
-        {"id": o.id, "name": o.name, "role": m.role}
+        {"id": o.id, "name": o.name, "role": m.role, "require_mfa": o.require_mfa}
         for o, m in db.execute(
             select(Organization, Membership)
             .join(Membership)
@@ -792,3 +792,24 @@ def dispute(
     audit(db, organization_id, user.id, "correction_submitted", row.id)
     db.commit()
     return {"id": row.id, "status": "pending"}
+
+
+class MfaPolicy(BaseModel):
+    require_mfa: bool
+    password: str = Field(min_length=1, max_length=128)
+
+
+@router.patch("/{organization_id}/security")
+async def security_policy(organization_id: int, payload: MfaPolicy, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    from routers.mfa import reauthenticate
+    from models.mfa import MfaCredential
+    await reauthenticate(db, user, payload.password)
+    organization = locked_organization(db, organization_id)
+    authorize(db, organization_id, user, "owner")
+    credential = db.get(MfaCredential, user.id)
+    if payload.require_mfa and not (credential and credential.enabled):
+        raise HTTPException(409, "Enroll in MFA before enabling workspace enforcement")
+    organization.require_mfa = payload.require_mfa
+    audit(db, organization_id, user.id, "mfa_policy_updated")
+    db.commit()
+    return {"require_mfa": organization.require_mfa}

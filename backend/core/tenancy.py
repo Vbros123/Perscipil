@@ -22,6 +22,11 @@ def authorize(db, organization_id, user, permission="read"):
         raise HTTPException(404, "Workspace not found")
     if permission not in PERMISSIONS.get(member.role, set()):
         raise HTTPException(403, "Workspace permission denied")
+    from models.mfa import MfaCredential
+    organization = db.get(Organization, organization_id)
+    credential = db.get(MfaCredential, user.id)
+    if organization.require_mfa and not (credential and credential.enabled):
+        raise HTTPException(403, "Enroll in MFA in Account settings to access this workspace")
     return member
 
 

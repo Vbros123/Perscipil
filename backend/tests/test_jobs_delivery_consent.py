@@ -119,7 +119,7 @@ def test_webhook_tampering_and_timestamp():
 
 def test_consent_tenant_revocation_and_redaction(api, monkeypatch):
     monkeypatch.setattr(
-        get_settings(), "MFA_ENCRYPTION_KEY", Fernet.generate_key().decode()
+        get_settings(), "CONSENT_ENCRYPTION_KEY", Fernet.generate_key().decode()
     )
     h, _ = account(api)
     a = org(api, h)
