@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
+from core.provider_budget import HOOKS
 
 from core.config import get_settings
 
@@ -184,7 +185,7 @@ class CensusProvider:
         if mapped is None:
             return CensusLookup(status="not_applicable", error_code="NO_INDUSTRY")
         try:
-            async with httpx.AsyncClient(timeout=_http_timeout()) as client:
+            async with httpx.AsyncClient(event_hooks=HOOKS, timeout=_http_timeout()) as client:
                 current = None
                 year = CBP_YEARS[0]
                 for candidate in CBP_YEARS:

@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
+from core.provider_budget import HOOKS
 
 from core.config import get_settings
 
@@ -266,7 +267,7 @@ class GleifProvider:
         if len(name) < 2:
             return GleifLookup(status="unavailable")
         try:
-            async with httpx.AsyncClient(timeout=_http_timeout(), headers=HEADERS, follow_redirects=True) as client:
+            async with httpx.AsyncClient(event_hooks=HOOKS, timeout=_http_timeout(), headers=HEADERS, follow_redirects=True) as client:
                 if LEI_RE.match(name.upper()):
                     entity = await self._fetch_lei(client, name.upper())
                     if entity is None:

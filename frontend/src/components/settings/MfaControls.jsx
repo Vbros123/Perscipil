@@ -1,0 +1,11 @@
+import { useEffect, useState } from 'react'
+import { apiRequest } from '../../api/client'
+import ErrorNotice from '../common/ErrorNotice'
+import { useAuth } from '../../context/AuthContext'
+export default function MfaControls(){
+ const [enabled,setEnabled]=useState(false),[password,setPassword]=useState(''),[code,setCode]=useState(''),[setup,setSetup]=useState(null),[codes,setCodes]=useState([]),[error,setError]=useState(''),[busy,setBusy]=useState(false)
+ const {logout}=useAuth()
+ useEffect(()=>{apiRequest('/api/auth/mfa').then(r=>setEnabled(r.enabled)).catch(e=>setError(e.message))},[])
+ async function action(path){setBusy(true);setError('');try{const r=await apiRequest('/api/auth/mfa/'+path,{method:'POST',body:JSON.stringify({password,code})});if(path==='enroll')setSetup(r);else if(path==='confirm'){setSetup(null);setCodes(r.recovery_codes);setEnabled(true);setPassword('');setCode('')}else await logout(false)}catch(e){setError(e.message)}finally{setBusy(false)}}
+ return <section className="panel form-stack"><h2>Authenticator security</h2><p>{enabled?'MFA enabled':'MFA optional'} · TOTP authenticator app and one-use recovery codes.</p><ErrorNotice message={error}/>{codes.length>0?<><p>Save these recovery codes securely. Each works once.</p><textarea aria-label="Recovery codes" readOnly rows={10} value={codes.join('\n')}/><button className="btn btn-primary" onClick={()=>logout(false)}>I saved my codes — sign in again</button></>:<><label>Confirm current password<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label>{setup&&<><p>Enter this setup key in your authenticator app. Enrollment expires in ten minutes.</p><label>Authenticator setup key<input readOnly value={setup.secret}/></label><a href={setup.otpauth_uri}>Open authenticator app</a></>}{(setup||enabled)&&<label>Authenticator or recovery code<input autoComplete="one-time-code" value={code} onChange={e=>setCode(e.target.value)} maxLength={80}/></label>}<button className="btn" disabled={busy||!password||((setup||enabled)&&!code)} onClick={()=>action(enabled?'disable':setup?'confirm':'enroll')}>{enabled?'Disable MFA':setup?'Verify and enable MFA':'Start MFA setup'}</button></>}</section>
+}

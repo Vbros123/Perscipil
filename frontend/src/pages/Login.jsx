@@ -6,7 +6,7 @@ import ErrorNotice from '../components/common/ErrorNotice'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
-  const [form, setForm] = useState({ email: '', password: '' })
+  const [form, setForm] = useState({ email: '', password: '', mfa_code: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login, flashMessage } = useAuth()
@@ -41,6 +41,7 @@ export default function Login() {
         <form onSubmit={submit} className="form-stack">
           <label>Email<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></label>
           <label>Password<input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required /></label>
+          <label>Authenticator or recovery code (if enabled)<input autoComplete="one-time-code" maxLength={80} value={form.mfa_code} onChange={event=>setForm({...form,mfa_code:event.target.value})}/></label>
           <button className="btn btn-primary" disabled={loading}>{loading ? 'Checking' : 'Continue'} <ArrowRight size={16} /></button>
         </form>
         <p className="auth-switch"><Link to="/forgot-password">Forgot password?</Link></p>

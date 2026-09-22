@@ -13,6 +13,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///./test_privatelens_pytest.db")
 os.environ.setdefault("JWT_SECRET", "test-secret-value-that-is-long-enough-for-production-checks")
 os.environ.setdefault("AUTH_TOKEN_RETURN_IN_RESPONSE", "true")
 os.environ.setdefault("HTTP_TIMEOUT", "0.1")
+os.environ.setdefault("PROVIDER_BUDGETS_ENABLED", "false")
 
 db_url = os.environ["DATABASE_URL"]
 if db_url.startswith("sqlite:///./"):

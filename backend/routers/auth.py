@@ -179,6 +179,16 @@ def login(payload: LoginRequest, request: Request, response: Response, db: Sessi
             detail="Invalid email or password.",
         )
 
+    from models.mfa import MfaCredential
+    from core.mfa import consume
+    mfa = db.get(MfaCredential, user.id)
+    if mfa and mfa.enabled and not consume(db, user.id, payload.mfa_code):
+        user.failed_login_count += 1
+        if user.failed_login_count >= settings.LOGIN_MAX_FAILED_ATTEMPTS:
+            user.locked_until = utc_now() + timedelta(minutes=settings.LOGIN_LOCKOUT_MINUTES)
+        audit(db, "mfa_login_failed", request, user=user)
+        db.commit()
+        raise HTTPException(401, "Authenticator or unused recovery code required.")
     user.failed_login_count = 0
     user.locked_until = None
     user.last_login_at = utc_now()

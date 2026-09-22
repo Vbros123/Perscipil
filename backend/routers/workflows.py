@@ -226,7 +226,10 @@ def accept_policy(payload:Acceptance,user:User=Depends(get_current_user),db:Sess
     settings=get_settings()
     if not settings.POLICIES_PUBLISHED or payload.terms_version!=settings.TERMS_VERSION or payload.privacy_version!=settings.PRIVACY_VERSION:
         raise HTTPException(409,'Published policy versions do not match; draft policies cannot be accepted')
-    db.add(PolicyAcceptance(user_id=user.id,**payload.model_dump()));db.commit();return {'accepted':True}
+    db.execute(select(User).where(User.id==user.id).with_for_update())
+    existing=db.scalar(select(PolicyAcceptance).where(PolicyAcceptance.user_id==user.id,PolicyAcceptance.terms_version==payload.terms_version,PolicyAcceptance.privacy_version==payload.privacy_version))
+    if not existing: db.add(PolicyAcceptance(user_id=user.id,**payload.model_dump()))
+    db.commit();return {'accepted':True}
 
 class Review(BaseModel):
     report_id:int
@@ -268,6 +271,10 @@ def export_account(user:User=Depends(get_current_user),db:Session=Depends(get_db
 def delete_account(payload:DeleteAccount,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
     if not verify_password(payload.password,user.password_hash):raise HTTPException(403,'Password incorrect')
     from sqlalchemy import delete
+    from models.organizations import Membership
+    if db.scalar(select(Membership).where(Membership.user_id==user.id,Membership.role=='owner')):
+        raise HTTPException(409,'Transfer workspace ownership before deleting your account')
+    db.execute(delete(Membership).where(Membership.user_id==user.id))
     # Retain de-identified control history; remove free-text dispute content on deletion.
     db.execute(update(AuthAuditEvent).where(AuthAuditEvent.user_id==user.id).values(email=None,ip_address=None,user_agent=None))
     db.execute(update(Correction).where(Correction.user_id==user.id).values(details='[removed on account deletion]',review_history=[]))
@@ -281,3 +288,11 @@ def reports(user:User=Depends(get_current_user),db:Session=Depends(get_db)):
 @router.get('/monitoring')
 def subscriptions(user:User=Depends(get_current_user),db:Session=Depends(get_db)):
     return [{'id':r.id,'identity':r.identity,'next_run':r.next_run} for r in db.scalars(select(Subscription).where(Subscription.user_id==user.id))]
+
+@router.get('/policies/status')
+def policy_status(user:User=Depends(get_current_user),db:Session=Depends(get_db)):
+    from core.config import get_settings
+    s=get_settings()
+    latest=db.scalar(select(PolicyAcceptance).where(PolicyAcceptance.user_id==user.id).order_by(PolicyAcceptance.id.desc()))
+    current=bool(latest and latest.terms_version==s.TERMS_VERSION and latest.privacy_version==s.PRIVACY_VERSION)
+    return {'published':s.POLICIES_PUBLISHED,'current':current,'required':s.POLICIES_PUBLISHED and s.POLICY_REACCEPTANCE_REQUIRED and not current,'terms_version':s.TERMS_VERSION,'privacy_version':s.PRIVACY_VERSION,'terms_text':s.TERMS_TEXT if s.POLICIES_PUBLISHED else '', 'privacy_text':s.PRIVACY_TEXT if s.POLICIES_PUBLISHED else ''}

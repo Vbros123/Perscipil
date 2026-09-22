@@ -1,3 +1,4 @@
+import PolicyReview from '../common/PolicyReview'
 import { BRAND } from '../../lib/brand'
 import {
   BarChart3,
@@ -31,6 +32,7 @@ const sections = [
   {
     label: 'Workspace',
     items: [
+      { to: '/workspaces', label: 'Team workspaces', icon: User },
       { to: '/developer', label: 'Developer', icon: Code2 },
       { to: '/pricing', label: 'Pricing', icon: CreditCard },
       { to: '/settings', label: 'Settings', icon: Settings },
@@ -89,7 +91,7 @@ export default function AppShell({ children }) {
       </aside>
       <main className="workspace">
         <TopBar />
-        {children}
+        <PolicyReview />{children}
       </main>
     </div>
   )

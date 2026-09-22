@@ -6,6 +6,7 @@ import uuid
 from typing import Any
 
 import httpx
+from core.provider_budget import HOOKS
 from pydantic import ValidationError
 
 from core.config import get_settings
@@ -44,7 +45,7 @@ async def fetch_evidence(identity: CompanyIdentity) -> GatewayEvidenceResponse |
     }
 
     try:
-        async with httpx.AsyncClient(
+        async with httpx.AsyncClient(event_hooks=HOOKS,
             timeout=settings.LICENSED_DATA_TIMEOUT,
             follow_redirects=False,
         ) as client:

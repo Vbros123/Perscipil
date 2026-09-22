@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import MfaControls from '../components/settings/MfaControls'
 import DataControls from '../components/settings/DataControls'
 
 import { changePassword } from '../api/auth'
@@ -97,6 +98,7 @@ export default function Account() {
         </label>
         <button className="btn btn-primary" disabled={passwordLoading}>{passwordLoading ? 'Updating' : 'Change password'}</button>
       </form>
+      <MfaControls />
       <DataControls />
     </div>
   )

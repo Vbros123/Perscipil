@@ -2,6 +2,7 @@ import { Redirect, Route, Router, Switch } from './router'
 
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AppShell from './components/layout/AppShell'
+import Workspaces from './pages/Workspaces'
 import Account from './pages/Account'
 import Batch from './pages/Batch'
 import ResearchControls from './pages/ResearchControls'
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="/dashboard"><Protected><Dashboard /></Protected></Route>
           <Route path="/reports/:company"><Protected><CompanyReport /></Protected></Route>
           <Route path="/research-review"><Protected><ResearchControls /></Protected></Route>
+          <Route path="/workspaces"><Protected><Workspaces /></Protected></Route>
           <Route path="/batches"><Protected><Batch /></Protected></Route>
           <Route path="/compare"><Protected><Compare /></Protected></Route>
           <Route path="/watchlist"><Protected><Watchlist /></Protected></Route>
