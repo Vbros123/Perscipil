@@ -19,28 +19,26 @@ def metrics(rows, threshold=0.5):
     negatives = len(y) - positives
     tp = sum(a == 1 and b >= threshold for a, b in zip(y, p))
     fp = sum(a == 0 and b >= threshold for a, b in zip(y, p))
-    # Rank-based AUC with exact tie credit.
-    auc = (
-        sum(
-            (a > b) + 0.5 * (a == b)
-            for a, t in zip(p, y)
-            if t
-            for b, u in zip(p, y)
-            if not u
-        )
-        / (positives * negatives)
-        if positives and negatives
-        else None
-    )
-    # Average precision integrates precision over distinct score thresholds (ties grouped).
+    # O(n log n) rank groups preserve exact ties without pairwise expansion.
+    grouped = {}
+    for outcome, probability in zip(y, p):
+        pos, neg = grouped.get(probability, (0, 0))
+        grouped[probability] = (pos + outcome, neg + 1 - outcome)
+    below = 0
+    credit = 0.0
+    for score in sorted(grouped):
+        pos, neg = grouped[score]
+        credit += pos * (below + 0.5 * neg)
+        below += neg
+    auc = credit / (positives * negatives) if positives and negatives else None
     ap = 0.0
-    previous_recall = 0.0
-    for cutoff in sorted(set(p), reverse=True):
-        selected = [t for t, s in zip(y, p) if s >= cutoff]
-        hits = sum(selected)
-        recall = hits / positives if positives else 0
-        ap += (recall - previous_recall) * hits / len(selected)
-        previous_recall = recall
+    hits = total = 0
+    for score in sorted(grouped, reverse=True):
+        pos, neg = grouped[score]
+        hits += pos
+        total += pos + neg
+        if positives:
+            ap += (pos / positives) * hits / total
     ece = 0
     for i in range(10):
         pairs = [(a, b) for a, b in zip(y, p) if min(9, int(b * 10)) == i]
@@ -91,7 +89,8 @@ def evaluate(rows, split_date, fixture=True, seed=42):
     prevalence = sum(r["outcome"] for r in train) / len(train)
     baseline = metrics([{**r, "probability": prevalence} for r in test])
     rng = random.Random(seed)
-    boot = [metrics(rng.choices(test, k=len(test)))["brier"] for _ in range(200)]
+    errors = [(r["outcome"] - r["probability"]) ** 2 for r in test]
+    boot = [sum(rng.choices(errors, k=len(errors))) / len(errors) for _ in range(200)]
     boot.sort()
     groups = {
         g: metrics([r for r in test if r.get("subgroup", "unspecified") == g])

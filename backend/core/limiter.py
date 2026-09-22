@@ -79,7 +79,8 @@ class DatabaseLimiter:
         cost = max(1, int(cost))
         if cost > self._max:
             return False, self._window
-        key = self.namespace + ':' + hashlib.sha256(identifier.encode()).hexdigest()
+        namespace = self.namespace if len(self.namespace) <= 35 else hashlib.sha256(self.namespace.encode()).hexdigest()[:32]
+        key = namespace + ':' + hashlib.sha256(identifier.encode()).hexdigest()
         try:
             with SessionLocal.begin() as db:
                 insert = pg_insert if db.bind.dialect.name == 'postgresql' else sqlite_insert

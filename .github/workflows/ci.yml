@@ -87,7 +87,7 @@ jobs:
           POSTGRES_DB: privatelens_test
         ports: ["5432:5432"]
         options: >-
-          --health-cmd pg_isready --health-interval 5s
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
           --health-timeout 5s --health-retries 10
     defaults:
       run:
@@ -111,3 +111,15 @@ jobs:
       - run: pytest -q
       - run: createdb -h localhost -U postgres privatelens_restore
       - run: PYTHONPATH=. python scripts/restore_drill.py
+
+  secret-history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Scan full reachable Git history with redacted output
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 git /repo --log-opts=--all --redact=100 --no-banner
+      - name: Scan working tree with redacted output
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 dir /repo --redact=100 --no-banner

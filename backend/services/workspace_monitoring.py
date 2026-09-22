@@ -1,7 +1,7 @@
 """Scheduled workspace reevaluation shares the durable scoring queue."""
 
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from core.database import SessionLocal
 from core.tenancy import locked_organization
 from models.organizations import Monitor, WorkJob, OrganizationResource, Delivery
@@ -16,7 +16,7 @@ def tick(limit=100):
         ids = list(
             db.scalars(
                 select(Monitor.id)
-                .where(Monitor.active.is_(True))
+                .where(Monitor.active.is_(True), or_(Monitor.next_run <= now, Monitor.last_job_id.is_not(None)))
                 .order_by(Monitor.next_run)
                 .limit(limit)
             )

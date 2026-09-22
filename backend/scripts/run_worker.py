@@ -15,9 +15,17 @@ async def main(once=False):
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, stop.set)
+    last_retention = 0.0
     while not stop.is_set():
         started = time.monotonic()
         try:
+            if time.monotonic() - last_retention >= 86400:
+                from scripts.retention import purge
+                from services.retention import purge_extended
+                purge()
+                counts = purge_extended()
+                last_retention = time.monotonic()
+                logging.getLogger("privatelens.worker").info("retention_completed counts=%s", counts)
             scheduled = tick()
             processed = await run_cycle()
             delivered = await deliver_due()
