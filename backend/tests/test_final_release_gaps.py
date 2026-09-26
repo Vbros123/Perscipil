@@ -87,3 +87,27 @@ def test_provider_capacity_released_after_failure(api,monkeypatch):
             assert all(isinstance(r,(httpx.ConnectError,httpx.HTTPStatusError)) for r in result)
             with pytest.raises(httpx.ConnectError):await client.get('https://capacity-fixture.example')
     asyncio.run(run())
+
+
+def test_policy_reacceptance_preserves_account_access(api,monkeypatch):
+    from core.config import get_settings
+    h,_=account(api)
+    cfg=get_settings()
+    monkeypatch.setattr(cfg,'POLICIES_PUBLISHED',True)
+    monkeypatch.setattr(cfg,'POLICY_REACCEPTANCE_REQUIRED',True)
+    assert api.get('/api/organizations',headers=h).status_code==428
+    assert api.get('/api/policies/status',headers=h).status_code==200
+    assert api.get('/api/auth/mfa',headers=h).status_code==200
+    response=api.post('/api/policies/accept',headers=h,json={'terms_version':cfg.TERMS_VERSION,'privacy_version':cfg.PRIVACY_VERSION})
+    assert response.status_code==200,response.text
+    assert api.get('/api/organizations',headers=h).status_code==200
+
+
+def test_workspace_mfa_blocks_unenrolled_members(api):
+    from core.database import SessionLocal
+    from models.organizations import Organization
+    h,uid=account(api);oid=org(api,h)
+    with SessionLocal.begin() as db:db.get(Organization,oid).require_mfa=True
+    assert api.get(f'/api/organizations/{oid}/members',headers=h).status_code==403
+    assert api.get('/api/auth/mfa',headers=h).status_code==200
+    assert api.get('/api/organizations',headers=h).status_code==200

@@ -67,3 +67,15 @@ def test_thousand_completed_jobs_across_workspaces(api):
     with SessionLocal() as db:
         assert db.scalar(select(func.count()).select_from(WorkJob).where(WorkJob.organization_id.in_(oids),WorkJob.state=='complete'))==1000
         assert all(db.scalars(select(WorkJob.result_id).where(WorkJob.organization_id.in_(oids))))
+
+
+def test_pool_exhaustion_readiness_and_recovery(api,monkeypatch):
+    import core.database
+    from sqlalchemy import create_engine
+    limited=create_engine(str(engine.url.render_as_string(hide_password=False)),pool_size=1,max_overflow=0,pool_timeout=.05)
+    try:
+        monkeypatch.setattr(core.database,'engine',limited)
+        with limited.connect():
+            assert api.get('/api/ready').status_code==503
+        assert api.get('/api/ready').status_code==200
+    finally:limited.dispose()

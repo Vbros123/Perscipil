@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select, delete, update
 from models.operations import DeletionMarker
 from models.user import User, AuthAuditEvent
+from models import company, settings  # noqa: F401; register account relationships for CLI use
 from models.organizations import Membership
 from models.workflows import Correction
 

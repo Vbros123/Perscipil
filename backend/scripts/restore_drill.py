@@ -62,7 +62,7 @@ def run():
     env = {**os.environ, 'DATABASE_URL':target}
     subprocess.run(['alembic','upgrade','head'],env=env,check=True)
     subprocess.run(['alembic','check'],env=env,check=True)
-    smoke = "from fastapi.testclient import TestClient; from main import app;\nwith TestClient(app) as c: assert c.get('/api/health').status_code == 200"
+    smoke = "from fastapi.testclient import TestClient; from main import app;\nwith TestClient(app) as c: assert c.get('/api/ready').status_code == 200"
     subprocess.run(['python','-c',smoke],env=env,check=True)
     print(json.dumps({'status':'passed','tables_verified':len(before),'rows_verified':sum(v['rows'] for v in before.values()),'backup_seconds':backup_seconds,'restore_seconds':restore_seconds,'encrypted':True,'application_health':True,'post_backup_deletion_replayed':True}))
 

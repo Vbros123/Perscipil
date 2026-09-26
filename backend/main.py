@@ -162,7 +162,8 @@ def health():
 def get_metrics(request: Request):
     provided = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
     if settings.METRICS_TOKEN and secrets.compare_digest(provided, settings.METRICS_TOKEN):
-        return metrics.render_prometheus()
+        from services.operations import queue_metrics
+        return metrics.render_prometheus() + queue_metrics()
     return PlainTextResponse("not found\n", status_code=404)
 
 @app.get("/.well-known/security.txt", response_class=PlainTextResponse)
@@ -181,3 +182,16 @@ def security_txt():
 def capabilities():
     from core.capabilities import PRODUCT
     return PRODUCT
+
+
+@app.get("/api/ready")
+def readiness():
+    from sqlalchemy import text
+    from sqlalchemy.exc import SQLAlchemyError
+    from core.database import engine
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        return JSONResponse(status_code=503,content={"status":"unavailable","dependency":"database"})
+    return {"status":"ready"}
