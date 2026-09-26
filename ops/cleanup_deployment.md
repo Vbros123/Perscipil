@@ -1,7 +1,7 @@
 # Cleanup rollout — current runbook
 
-1. Review final report and versioned diff. No deployment credentials or original
-   Git history were supplied; local commits begin with imported archive snapshot.
+1. Review FINAL_AI_CLEANUP_REPORT.md and PR #10. GitHub and Vercel are connected;
+   backend Render sign-in and isolated staging access remain required.
 2. Provision/use approved Postgres. Take encrypted backup, validate checksum,
    restore into isolated test database and compare counts before migration.
 3. Install Python 3.12 locked requirements. Set strong JWT/METRICS secrets, real
@@ -23,8 +23,8 @@
    sanitization and rate-limit client identity. Fail closed if this is not known.
 8. Before licensed activation, complete vendor permissions AND verify daily
    retention scheduling/backup expiry. Codat stays disabled. Scheduled monitoring
-   uses hourly run_monitoring.py; weekly reevaluation and in-app events only. No
-   email/webhook delivery promises. Monitor worker failures and retention outcomes.
+   uses backend/scripts/run_worker.py for weekly reevaluation, durable jobs and
+   configured email/webhooks. Monitor worker failures and retention outcomes.
 9. Configure security.txt with a real mailto/HTTPS contact and future ISO expiry.
    Have counsel review policy drafts, publish immutable approved versions, then
    enable policy acceptance support. Do not mark old users accepted automatically.

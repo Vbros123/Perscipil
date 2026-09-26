@@ -1,84 +1,88 @@
 # Final AI cleanup report
 
-Status: engineering branch; production release remains gated. This report distinguishes implemented code from activated and verified infrastructure. It does not certify completion of all 24 requested priorities.
+Updated 2026-09-26. Engineering work is on `final-pre-fundraising-cleanup`, draft PR #10. Production promotion remains gated on backend staging activation and authenticated browser verification. A frontend preview is not a full-stack staging deployment.
 
 ## 1. Executive Summary
 
-Implemented isolated team workspaces, role authorization, durable screening jobs, scheduled monitoring and notification delivery interfaces, scoped customer API, consent-bound storage primitives, TOTP MFA, policy review UI, and fixture validation harnesses. Preserved personal workflows. Added migrations and regression tests. New functionality is not represented as production verified.
+Fixed the red SQLite migration and the Postgres quota-key overflow. Implemented the missing workspace security, monitoring/correction controls, customer API read limits, separate consent encryption, portable one-use recovery codes, shared provider concurrency limits, daily retention coordination, and deletion replay tooling. Completed the corrected seven-slide deck. Expanded CI to real PostgreSQL, encrypted restore verification and full-history Gitleaks scanning. Remaining environment-dependent technical gates are listed explicitly below; this report does not claim all engineering is finished.
 
-## 2. Baseline
+## 2. Baseline and Git
 
-Remote main and existing Vercel production: `3ed1df1d58e821c246a91b04982f5511ce22d250`. Local baseline tree matches that commit. Dedicated branch: `final-pre-fundraising-cleanup`. Initial backend run: 126 passed, one live SEC transport failure, one skipped; missing SOCKS dependency subsequently added. Earlier intermediate run: 135 passed, two skipped. Frontend clean install, lint/build and gateway suite passed. Evidence is under `verification/final-pass`.
+Production baseline remains `3ed1df1d58e821c246a91b04982f5511ce22d250`. Changes are additive on the dedicated branch; production has not been promoted. Local imported history is synchronized through identical Git trees without rewriting remote history. PR: https://github.com/Vbros123/privatelens/pull/10.
 
 ## 3. Organizations / RBAC
 
-Owner/admin/member roles, central authorization, invitations tied to verified email, revocation, ownership transfer, organization-owned resources, keys, jobs and audits. Tests cover cross-tenant access, privileged actions and revoked membership. Existing individual data remains separate. Organization MFA-enforcement field is reserved and is not an active enforcement policy.
+Isolated organizations, owner/admin/member roles, verified-email invitation acceptance, revocation, role controls, password-confirmed ownership transfer, tenant-scoped reports/jobs/keys/audits. Workspace MFA policy is now actively enforced. Account MFA settings remain accessible so unenrolled members can recover access. Personal data remains separate. Tests cover isolation, authorization, revocation, MFA policy and transfer reauthentication.
 
-## 4. Monitoring
+## 4. Monitoring and corrections
 
-Weekly reevaluation, durable queue, leases, retry backoff, fenced completion, idempotent material-change events and delivery history. In-app delivery plus configured email/webhook adapters and fixture provider. Webhooks sign timestamp, event ID and body; receivers must persist event IDs to reject duplicate delivery. At-least-once delivery is possible. Worker command: `cd backend && PYTHONPATH=. python scripts/run_worker.py`. Production worker and daily retention scheduling have not been activated; backend hosting access was unavailable.
+Weekly durable screening with leases, retries, fenced completion, idempotent material-change events, in-app delivery and operator-configured email/webhooks. Webhook signatures include timestamp, event ID and body; receivers must persist IDs to prevent repeated processing. Retry-After is honored for 429/503. UI supports scheduling/stopping monitors, delivery history, correction submission and administrator review with terminal decisions and append-only review history. Accepting a correction does not alter immutable report evidence.
 
-## 5. Bulk Screening
+## 5. Bulk screening and concurrency
 
-512 KiB CSV, 1,000 input rows, identity deduplication, 2,000 outstanding jobs per workspace, per-row state, cancellation, retry ceilings and formula-safe CSV export. Two workers per cycle by default, one active job per workspace, shared provider request budgets. Fixture test enqueues 1,000 rows and exercises retry; this is not a completed 1,000-company production throughput benchmark. Sustained Postgres fairness and provider concurrency testing remain outstanding.
+1,000 rows / 512 KiB CSV, deduplication, idempotent batch submission, 2,000 outstanding jobs per workspace, bounded retry/cancellation, paginated progress and formula-safe CSV downloads. One active job per workspace across workers; cycle ordering considers the last service time across all workspace jobs. Real Postgres tests complete a 1,000-job fixture across 20 workspaces. This is deterministic fixture throughput, not a live-provider production capacity promise. Shared database rate budgets and two concurrent buffered requests per provider are enforced; timeout/cancellation releases capacity, with expiring leases after worker death.
 
 ## 6. Customer API
 
-`/api/v1/workspace/scores`, `/jobs/{id}`, `/reports`; hashed organization keys, scopes, revocation, pagination and idempotent score submission. Pilot lifetime quota is 10,000 new requests per organization. OpenAPI derives from routes. General customer read-request rate limits and broader API documentation remain to be completed before external pilots.
+Versioned `/api/v1/workspace` routes, hashed/revocable scoped keys, isolated jobs/reports, idempotency, pagination, 10,000-new-request pilot lifetime quota and shared 120/minute request limit. Documentation: `docs/CUSTOMER_API.md`; generated schemas: `/openapi.json`. Workspace workers continue to reject licensed mode until the consented vendor integration is activated.
 
-## 7. Provider / Consent Isolation
+## 7. Provider / consent isolation
 
-Tenant, subject, provider connection, expiry, revocation, permissions, encrypted cache and redacted views are implemented and fixture tested. Unknown permissions deny access. This is infrastructure, not an activated Codat integration. Workspace jobs use public sources only. Consent payload encryption currently shares the configured MFA encryption key; separate keys are recommended before licensed activation.
+Tenant, subject, connection, expiry, revocation and boolean-purpose permissions guard encrypted payloads. Unknown or non-permission fields cannot authorize access. Separate `CONSENT_ENCRYPTION_KEY` is required, independent of MFA. Invalid encryption configuration and unavailable ciphertext fail closed. Vendor contracts/credentials are not supplied; no Codat activation or legal permission is implied.
 
-## 8. Authentication / MFA
+## 8. Authentication / MFA / policies
 
-TOTP enrollment with manual setup key and authenticator URI, protected stored secret, one-use recovery codes, replay prevention, password reauthentication, rate limits, audit events and token-version invalidation. No QR image is generated. Configure a durable Fernet `MFA_ENCRYPTION_KEY` through backend secret management before enrollment. Policy versions, configured reacceptance and review/accept UI are implemented. Published policy text must be supplied; transient failures retain account-management access.
+Encrypted TOTP seed, manual setup key and authenticator URI, password reauthentication, TOTP replay protection, recovery-code atomic compare-and-swap on SQLite and Postgres, audit and session-version invalidation. Concurrent recovery-code test permits exactly one successful use. Required policy reacceptance has regression coverage and preserves account-management access. Approved policy text and durable encryption keys must be configured by the authorized infrastructure owner before activation.
 
-## 9. Browser / Accessibility Verification
+## 9. Browser verification
 
-Earlier live homepage browser inspection succeeded; backend navigation was blocked by the browser environment. This does not prove backend outage. Full authenticated browser journeys, accessibility automation, responsive UI checks and new workspace/MFA E2E have not been completed. Fixed stale workspace fetch responses displaying after workspace selection changes.
+The deployed preview homepage and login/MFA form were inspected in the browser. The prior preview had no application-origin console errors in these public routes; extension/Vercel sign-in messages were excluded. Authenticated workspace, MFA, correction, batch and delivery journeys remain unverified against a deployed backend. Cross-browser/mobile and full accessibility automation are still release gates. No fabricated browser success is claimed.
 
-## 10. Production Verification
+## 10. Deployment
 
-Vercel production deployment `dpl_9Tyhp6kb3A2rkoUhUnX9dRM9zbnF` is READY at baseline SHA above. Production URL: https://privatelens.vercel.app. Backend URL configured in frontend: https://privatelens.onrender.com. Backend deployed SHA, migrations, health, runtime secrets and database could not be verified. New branch requires backend staging deployment before production promotion. Production security.txt is not verified.
+Vercel builds the branch successfully. Verified preview for `fc0a9ad0de1c5467e6ea47f6399d6f1eeb58d4b8`: https://privatelens-kzgu41ie6-bruh-gangs-projects.vercel.app. Its frontend still references the existing Render API; this is not an isolated backend staging environment. Render presents a login form and no backend hosting connector/session is available. Deployment requires secure Render sign-in, an isolated Postgres target and an approved worker/storage destination. A real founder contact from the supplied deck is published as frontend security.txt; backend contact remains configurable.
 
-## 11. Backups / Restore
+## 11. Backups / restore
 
-No successful Postgres restore drill was completed. Local bundled PostgreSQL setup failed due to OS account/ownership restrictions. No production data was modified or migrated. A tested encrypted restore into an isolated target remains a release gate.
+CI run 35797477198 passed an encrypted Postgres restore: all 29 tables / 1,228 rows matched by content fingerprints, migrations and restored application health passed. The expanded drill additionally replays a deletion recorded after the backup and checks idempotence before readiness. It is being verified on the latest commit. `scripts/deletion_ledger.py` exports/replays a separate encrypted minimal ledger. Production storage, current-ledger freshness, key custody, backup expiry, scheduling and restore RTO/RPO must be activated and measured in the real hosting environment. Ephemeral CI restore success is not a production backup certification.
 
-## 12. Database / Concurrency
+## 12. Database / operations
 
-New revisions `7a9b2795b255` and `5da46a24aab7` add separate tables. Fresh SQLite upgrade through head passed; `alembic check` reports no pending operations. Queue claim tokens, atomic counters and locks have regression coverage. PostgreSQL concurrency, pool exhaustion and staging upgrade verification remain uncompleted.
+Portable SQLite migrations through `ad421f560371` and schema diff check pass. PostgreSQL tests cover simultaneous enqueue/idempotency, single active claims, stale completion fencing, exact quotas, concurrent recovery use, 1,000 completed jobs and pool-exhaustion recovery. Postgres pool is bounded at 5 + 5 overflow with a five-second checkout timeout. `/api/health` is liveness; `/api/ready` checks database connectivity and returns 503 on database failure. Protected aggregate queue/delivery metrics supplement structured worker/provider logs. Daily retention uses a shared database lease. Runtime alert destinations and worker supervision are not activated without hosting access.
 
-## 13. Security Scanning
+## 13. Security scans
 
-Baseline dependency audit found no known vulnerabilities; final frontend audit reports zero. Ruff correctness checks pass. Bandit and the configured tracked-file pattern scan ran. The pattern scan is not exhaustive. Stronger scanner working-tree triage was started previously; a reviewed full remote-history audit and stronger CI gate are still outstanding. No real credential is reported as discovered or rotated.
+CI runs dependency audits, Ruff correctness, Bandit high-severity checks, tracked-file scan and Gitleaks full reachable Git history plus working tree with redacted output. Run 35797477198 found no leaks across 35 commits. Subsequent pushed code also passed the secret-history job. No credential rotation is represented as completed or needed based on a detected real secret. External penetration testing remains independent human work.
 
-## 14. Validation Infrastructure
+## 14. Validation infrastructure
 
-Time partitions, entity disjointness, label leakage checks, ROC-AUC, average precision, Brier, calibration bins, error rates, subgroup summaries, bootstrap Brier intervals, distribution shift and baseline comparison. Entity benchmark accepts labeled matching cases and outputs error/abstention metrics. Fixtures only: **NOT VALIDATED ON REAL OUTCOMES**. Resolver output collection, large-cohort performance and independent evaluation are not complete.
+Entity-disjoint time partitions, leakage checks, ROC-AUC, average precision, Brier/calibration, error rates, subgroup metrics, bootstrap intervals, shift and baseline comparison. Optimized rank calculations and bootstrap support a 20,000-row fixture regression. Resolver collection now calls the production resolver and compares canonical/LEI/CIK/domain IDs to independent expected labels. `scripts/evaluate_cohort.py` provides a reproducible file-based CLI. Fixture categories exercise infrastructure; representativeness and real predictive validity are not established. **NOT VALIDATED ON REAL OUTCOMES.**
 
-## 15. Pitch Deck
+## 15. Corrected deck
 
-Source PDF and discrepancy material were inspected earlier. The actual corrected deck file has not been completed; existing replacement text is not a revised deck. Do not distribute the original as an updated representation of this branch.
+`PrivateLens_Corrected_Deck.pdf` is complete as a separate saved copy, retaining seven original slide layouts. All slides were visually inspected; a leftover title glyph was removed. Updated signal counts and source availability, replaced stale screenshots, removed simulated-evidence and unsupported performance/activation implications, labeled target pricing/customers as proposed. Founder market figures retain a verification caveat. See `docs/DECK_CHANGELOG.md`.
 
-## 16. Final Tests
+## 16. Verification evidence
 
-Fresh frontend lint/build and audit: passed, zero vulnerabilities. Gateway: 3 passed. Fresh SQLite migrations and schema check: passed. Ruff correctness: passed. Backend: 139 passed, 2 live-provider checks skipped, 2 deprecation warnings (20.48 seconds). Final backend dependency audit: no known vulnerabilities. No Postgres, restore, complete browser E2E or production backend success is claimed.
+- Previously green full CI: 35797477198 (five jobs).
+- Expanded Postgres run 36206051904: 150 tests passed in 32.82s, including the 1,000 completed-job fixture; restore CLI then exposed a missing SQLAlchemy model registration, now fixed.
+- Latest local full backend suite before the final additional regressions: 145 passed, five environment-specific skips. Focused policy/MFA/cohort regressions: 12 passed.
+- Latest local frontend lint/build: passed. Fresh SQLite migration/schema check: passed. Ruff correctness: passed.
+- Exact final remote CI results will be recorded after completion. Do not infer final green from an earlier SHA.
 
-## 17. Remaining Technical Risks
+## 17. Remaining technical release gates
 
-Production backend/staging access and activation; Postgres concurrency and encrypted restore drill; complete authenticated browser and accessibility verification; full-history secret audit; retention scheduler and deletion replay after restore; organization MFA enforcement; read API limits; sustained queue fairness/provider concurrency; monitoring/dispute UI completion; separate encryption keys; corrected deck and consistent capability documentation. These are technical gaps, not human-only legal blockers. Keep this branch out of production until release gates are met.
+1. Authenticate to Render and provision/select an isolated staging API, worker and Postgres database. Configure secure runtime keys, exact CORS/CSP origins, approved mail/delivery destinations, migration startup and readiness checks.
+2. Execute the deployed authenticated browser journeys, responsive/accessibility checks, staging migrations, worker/delivery verification, and an encrypted restore using the actual hosting/backup destination. CI proves code behavior, not this operational deployment.
+3. Activate offsite encrypted backups, separate current deletion-ledger storage/freshness monitoring, retention and alerting. Verify ownership/control-history reconciliation after restoring older backups; do not reopen a restore with unresolved ownership state.
+4. Review and remediate findings from those environment-specific checks before production promotion.
 
-## 18. HUMAN ACTION REQUIRED
+These remain technical work blocked on infrastructure access, not contractual/customer work. Do not label this release “human-only remaining” until these gates are completed.
 
-- Infrastructure owner: provide connected backend and isolated Postgres staging access, approve hosting costs if needed; deliver an accessible staging environment. Runtime configuration cannot be verified through Vercel frontend access.
-- Founder and counsel: approve policy text, retention periods, trademark/name, incorporation/IP signatures; deliver approved documents. The agent cannot supply legal approval or signatures.
-- Founder and vendors: obtain contracted data permissions and activation credentials; deliver permission matrix and secure configuration. No contractual rights inferred.
-- Independent security firm: perform penetration test; deliver findings and retest evidence.
-- Founder/pilot partners: obtain real users and lawful outcome cohorts; deliver agreements and representative labels. No fabricated traction or predictive performance.
-- Founder/investors: handle fundraising and commitments; deliver actual agreements.
+## 18. Human / external requirements
 
-## 19. Final Readiness
+Founder/counsel: approved policy text and retention periods, trademark/name clearance, incorporation and IP signatures. Vendors: contracts, granular permissions and securely configured credentials. Independent security firm: penetration testing and retest evidence. Pilot partners: actual customers, agreements and lawful representative outcome cohorts. Investors/founder: funding and signed commitments. No traction, permissions, legal approval or predictive validation has been invented.
 
-Technical MVP: substantial implemented baseline, release gates remain. Public beta: existing frontend live; new branch not production approved. Institutional pilot: not ready until infrastructure and end-to-end verification complete. Enterprise production: not ready. Investor technical diligence: inspectable code and candid evidence available; no certification of predictive validation or production operations.
+## 19. Readiness
+
+Implemented and inspectable research MVP; public frontend preview available. Institutional staging verification remains gated on secure backend access. No production promotion or enterprise readiness certification. Updated capability metadata and deployment/API documentation describe implemented versus activated behavior explicitly.

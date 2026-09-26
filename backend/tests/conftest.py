@@ -32,3 +32,12 @@ def api():
 
 def strong_password(prefix: str = "Password") -> str:
     return f"{prefix}123!Secure"
+
+
+@pytest.fixture(autouse=True)
+def isolate_memory_auth_budget():
+    """Each test is an independent client population; keep limits active within it."""
+    from core.limiter import auth_limiter, SlidingWindowLimiter
+    if isinstance(auth_limiter, SlidingWindowLimiter):
+        auth_limiter._requests.clear()
+    yield
