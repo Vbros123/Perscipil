@@ -8,7 +8,7 @@ from models.company import CompanyReport, CompanySearch, SavedCompany  # noqa: F
 from models.settings import UserSettings  # noqa: F401
 from models.user import AuthAuditEvent, SecurityToken, User  # noqa: F401
 
-from models import consent, mfa, organizations, workflows  # noqa: F401
+from models import consent, mfa, operations, organizations, workflows  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", database_url)

@@ -274,11 +274,9 @@ def delete_account(payload:DeleteAccount,user:User=Depends(get_current_user),db:
     from models.organizations import Membership
     if db.scalar(select(Membership).where(Membership.user_id==user.id,Membership.role=='owner')):
         raise HTTPException(409,'Transfer workspace ownership before deleting your account')
-    db.execute(delete(Membership).where(Membership.user_id==user.id))
-    # Retain de-identified control history; remove free-text dispute content on deletion.
-    db.execute(update(AuthAuditEvent).where(AuthAuditEvent.user_id==user.id).values(email=None,ip_address=None,user_agent=None))
-    db.execute(update(Correction).where(Correction.user_id==user.id).values(details='[removed on account deletion]',review_history=[]))
-    db.delete(user);db.commit()
+    from services.deletions import erase
+    erase(db,user)
+    db.commit()
     return {'deleted':True,'retained':'De-identified security, acceptance, and correction control records'}
 
 @router.get('/reports')

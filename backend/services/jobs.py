@@ -213,6 +213,9 @@ async def run_one(organization_id, scorer=None):
 
 async def run_cycle(concurrency=2, scorer=None):
     concurrency = max(1, min(concurrency, 4))
+    from sqlalchemy.orm import aliased
+    history = aliased(WorkJob)
+    last_served = select(func.max(history.last_attempt_at)).where(history.organization_id == WorkJob.organization_id).correlate(WorkJob).scalar_subquery()
     with SessionLocal() as db:
         # Oldest workspace first, only one job per workspace per cycle.
         ids = list(
@@ -225,7 +228,7 @@ async def run_cycle(concurrency=2, scorer=None):
                     )
                 )
                 .group_by(WorkJob.organization_id)
-                .order_by(func.min(WorkJob.available_at))
+                .order_by(last_served.asc().nullsfirst(), func.min(WorkJob.available_at))
                 .limit(100)
             )
         )

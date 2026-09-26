@@ -41,3 +41,35 @@ async def after_response(response):
 
 
 HOOKS = {"request": [before_request], "response": [after_response]}
+
+
+class ProviderClient(httpx.AsyncClient):
+    """Two simultaneous buffered requests per provider across all processes.
+
+    A request is cancelled after 90 seconds; leases expire at 120 seconds to
+    recover capacity after process death. Rate hooks still apply per redirect.
+    """
+    async def send(self, request, **kwargs):
+        import asyncio, hashlib
+        from core.leases import acquire, release
+        if not get_settings().PROVIDER_BUDGETS_ENABLED:
+            return await super().send(request, **kwargs)
+        if kwargs.get("stream"):
+            raise ValueError("Provider streaming is not supported")
+        host = request.url.host
+        group = "sec" if host.endswith(".sec.gov") or host == "sec.gov" else host
+        prefix = "provider:" + hashlib.sha256(group.encode()).hexdigest()[:40]
+        owned = None
+        for slot in range(2):
+            key = prefix + ":" + str(slot)
+            token = await asyncio.to_thread(acquire, key, 120)
+            if token:
+                owned = (key, token)
+                break
+        if owned is None:
+            response = httpx.Response(429, request=request, headers={"Retry-After":"2"})
+            raise httpx.HTTPStatusError("Provider concurrency exhausted", request=request, response=response)
+        try:
+            return await asyncio.wait_for(super().send(request, **kwargs), timeout=90)
+        finally:
+            await asyncio.shield(asyncio.to_thread(release, *owned))

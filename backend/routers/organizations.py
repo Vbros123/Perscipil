@@ -630,10 +630,11 @@ def export(
 
 class Transfer(BaseModel):
     user_id: int
+    password: str = Field(min_length=1, max_length=128)
 
 
 @router.post("/{organization_id}/ownership")
-def transfer(
+async def transfer(
     organization_id: int,
     payload: Transfer,
     user=Depends(get_current_user),
@@ -641,6 +642,8 @@ def transfer(
 ):
     locked_organization(db, organization_id)
     current = authorize(db, organization_id, user, "owner")
+    from routers.mfa import reauthenticate
+    await reauthenticate(db, user, payload.password)
     target = db.get(Membership, (organization_id, payload.user_id))
     if not target or not target.active or target.user_id == user.id:
         raise HTTPException(422, "Choose another active member")
@@ -813,3 +816,25 @@ async def security_policy(organization_id: int, payload: MfaPolicy, user=Depends
     audit(db, organization_id, user.id, "mfa_policy_updated")
     db.commit()
     return {"require_mfa": organization.require_mfa}
+
+
+class CorrectionReview(BaseModel):
+    status: Literal["under_review", "accepted", "rejected"]
+    note: str = Field(min_length=10, max_length=2000)
+
+
+@router.patch("/{organization_id}/corrections/{correction_id}")
+def review_correction(organization_id: int, correction_id: int, payload: CorrectionReview,
+                      user=Depends(get_current_user), db: Session = Depends(get_db)):
+    locked_organization(db, organization_id)
+    authorize(db, organization_id, user, "members")
+    row = resource(db, organization_id, correction_id, "correction")
+    if row.payload["status"] in ("accepted", "rejected"):
+        raise HTTPException(409, "Correction review is already final")
+    history = [*row.payload.get("review_history", []), {
+        "status": payload.status, "note": payload.note,
+        "reviewed_by": user.id, "reviewed_at": datetime.now(timezone.utc).isoformat()}]
+    row.payload = {**row.payload, "status": payload.status, "review_history": history}
+    audit(db, organization_id, user.id, "correction_reviewed", row.id)
+    db.commit()
+    return {"id": row.id, "status": payload.status, "note": "Source reports are immutable; rerun screening after correcting source evidence."}

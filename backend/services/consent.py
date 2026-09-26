@@ -5,14 +5,17 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, delete
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 from core.config import get_settings
 
 def cipher():
     key = get_settings().CONSENT_ENCRYPTION_KEY
     if not key:
         raise HTTPException(503, "Consent encryption key is not configured")
-    return Fernet(key.encode())
+    try:
+        return Fernet(key.encode())
+    except (ValueError, TypeError):
+        raise HTTPException(503, "Consent encryption configuration unavailable")
 from models.consent import ProviderConsent, ConsentPayload
 
 
@@ -48,7 +51,7 @@ def active_consent(db, org_id, consent_id, purpose):
         row.state != "active"
         or row.revoked_at
         or expires <= datetime.now(timezone.utc)
-        or purpose not in Permissions.model_fields
+        or purpose not in {name for name in Permissions.model_fields if name.startswith("can_")}
         or not getattr(permissions, purpose, False)
     ):
         raise HTTPException(403, "Consent or permitted purpose unavailable")
@@ -92,7 +95,10 @@ def get(db, org_id, consent_id, key, purpose="can_score"):
             ConsentPayload.expires_at > datetime.now(timezone.utc),
         )
     )
-    return json.loads(cipher().decrypt(row.encrypted_payload.encode())) if row else None
+    try:
+        return json.loads(cipher().decrypt(row.encrypted_payload.encode())) if row else None
+    except InvalidToken:
+        raise HTTPException(503, "Consent payload unavailable; contact the operator")
 
 
 def revoke(db, org_id, consent_id):

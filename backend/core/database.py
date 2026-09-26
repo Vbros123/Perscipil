@@ -40,7 +40,7 @@ def init_db() -> None:
     from models.settings import UserSettings  # noqa: F401
     from models.user import AuthAuditEvent, SecurityToken, User  # noqa: F401
 
-    from models import consent, mfa, organizations, workflows  # noqa: F401
+    from models import consent, mfa, operations, organizations, workflows  # noqa: F401
     Base.metadata.create_all(bind=engine)
 
 # SQLite must enforce the same ownership cascade constraints as Postgres.

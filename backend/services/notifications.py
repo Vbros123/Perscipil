@@ -25,7 +25,7 @@ def verify_signature(secret, timestamp, event_id, body, supplied, now=None):
             return False
     except (TypeError, ValueError):
         return False
-    return hmac.compare_digest(signature(secret, timestamp, event_id, body), supplied)
+    return isinstance(supplied, str) and hmac.compare_digest(signature(secret, timestamp, event_id, body), supplied)
 
 
 class TestDeliveryProvider:
@@ -141,7 +141,7 @@ async def deliver_due(limit=50, provider=None):
             token = secrets.token_hex(24)
             claimed = db.execute(
                 update(Delivery)
-                .where(Delivery.id == did, Delivery.state.in_(["queued", "retry"]))
+                .where(Delivery.id == did, Delivery.state.in_(["queued", "retry"]), Delivery.available_at <= datetime.now(timezone.utc), Delivery.attempts < 6)
                 .values(
                     state="running",
                     claim_token=token,
@@ -156,6 +156,7 @@ async def deliver_due(limit=50, provider=None):
             row = db.get(Delivery, did)
             event = db.get(OrganizationResource, row.event_id)
             event_id = f"org-{row.organization_id}-event-{row.event_id}"
+            retry_seconds = min(3600, 30 * 2**row.attempts)
             try:
                 await asyncio.wait_for(
                     provider.deliver(
@@ -168,6 +169,17 @@ async def deliver_due(limit=50, provider=None):
             except PermissionError:
                 state = "failed"
                 error = "DESTINATION_NOT_ACTIVATED"
+            except httpx.HTTPStatusError as exc:
+                state = "failed" if row.attempts >= 6 else "retry"
+                error = "HTTP_" + str(exc.response.status_code)
+                if exc.response.status_code in (429, 503):
+                    from email.utils import parsedate_to_datetime
+                    hint = exc.response.headers.get("Retry-After", "")
+                    try:
+                        delay = float(hint) if hint.isdecimal() else (parsedate_to_datetime(hint) - datetime.now(timezone.utc)).total_seconds()
+                        retry_seconds = max(retry_seconds, min(86400, max(0, delay)))
+                    except (ValueError, TypeError, OverflowError):
+                        pass
             except Exception:
                 state = "failed" if row.attempts >= 6 else "retry"
                 error = "DELIVERY_FAILED"
@@ -187,7 +199,7 @@ async def deliver_due(limit=50, provider=None):
                     if state == "delivered"
                     else None,
                     available_at=datetime.now(timezone.utc)
-                    + timedelta(seconds=min(3600, 30 * 2**row.attempts)),
+                    + timedelta(seconds=retry_seconds),
                 )
             )
             db.commit()

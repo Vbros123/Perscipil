@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from core.provider_budget import HOOKS
+from core.provider_budget import HOOKS, ProviderClient
 
 from core.config import get_settings
 from services.evidence import CompanyIdentity
@@ -577,7 +577,7 @@ async def collect_wikipedia(name: str, resolved=None) -> CollectorResult:
     if not requested:
         return _result("wikipedia", _no_wikipedia_signals(name, "no searchable company name was provided"))
     try:
-        async with httpx.AsyncClient(event_hooks=HOOKS, timeout=_http_timeout()) as client:
+        async with ProviderClient(event_hooks=HOOKS, timeout=_http_timeout()) as client:
             search = await client.get(
                 "https://en.wikipedia.org/w/api.php",
                 params={
@@ -623,7 +623,7 @@ async def collect_news_sentiment(name: str, resolved=None) -> CollectorResult:
             "recall", "dispute", "settlement", "penalty", "downgrade",
         }
 
-        async with httpx.AsyncClient(event_hooks=HOOKS, timeout=_http_timeout(), follow_redirects=True) as client:
+        async with ProviderClient(event_hooks=HOOKS, timeout=_http_timeout(), follow_redirects=True) as client:
             ddg = await client.get(
                 f"https://api.duckduckgo.com/?q={name.replace(' ', '+')}&format=json&no_html=1",
                 headers=HEADERS,
@@ -754,7 +754,7 @@ async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
     source_url = f"https://www.usaspending.gov/search/?query={name.replace(' ', '%20')}"
     accepted = _recipient_names(name, resolved)
     try:
-        async with httpx.AsyncClient(event_hooks=HOOKS, timeout=_http_timeout()) as client:
+        async with ProviderClient(event_hooks=HOOKS, timeout=_http_timeout()) as client:
             recipient = None
             try:
                 auto = await client.post(

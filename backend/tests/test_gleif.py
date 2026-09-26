@@ -224,7 +224,7 @@ def test_lookup_timeout_returns_structured_error(monkeypatch):
         async def __aexit__(self, *args):
             return False
 
-    monkeypatch.setattr("services.providers.gleif.httpx.AsyncClient", lambda *args, **kwargs: _Boom())
+    monkeypatch.setattr("services.providers.gleif.ProviderClient", lambda *args, **kwargs: _Boom())
     from services.providers.gleif import GleifProvider
 
     lookup = asyncio.run(GleifProvider().lookup("Cargill", "US"))

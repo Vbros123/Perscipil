@@ -22,10 +22,17 @@ async def main(once=False):
             if time.monotonic() - last_retention >= 86400:
                 from scripts.retention import purge
                 from services.retention import purge_extended
-                purge()
-                counts = purge_extended()
+                from core.leases import acquire, release
+                lease = acquire("daily-retention", 86400)
+                if lease:
+                    try:
+                        purge()
+                        counts = purge_extended()
+                        logging.getLogger("privatelens.worker").info("retention_completed counts=%s", counts)
+                    except Exception:
+                        release("daily-retention", lease)
+                        raise
                 last_retention = time.monotonic()
-                logging.getLogger("privatelens.worker").info("retention_completed counts=%s", counts)
             scheduled = tick()
             processed = await run_cycle()
             delivered = await deliver_due()

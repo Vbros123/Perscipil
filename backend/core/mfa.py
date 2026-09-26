@@ -68,8 +68,11 @@ def consume(db, user_id, code, allow_pending=False):
         hashed = hash_security_token(code)
         old = list(row.recovery_hashes)
         if hashed in old:
-            # Locked row serializes recovery-code consumption on PostgreSQL.
-            row.recovery_hashes = [x for x in old if x != hashed]
-            db.flush()
-            return True
+            changed = db.execute(update(MfaCredential).where(
+                MfaCredential.user_id == user_id,
+                MfaCredential.recovery_version == row.recovery_version,
+                MfaCredential.encrypted_secret == row.encrypted_secret,
+            ).values(recovery_hashes=[x for x in old if x != hashed],
+                     recovery_version=MfaCredential.recovery_version + 1))
+            return bool(changed.rowcount)
     return False

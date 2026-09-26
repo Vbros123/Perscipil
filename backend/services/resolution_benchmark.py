@@ -50,3 +50,25 @@ def evaluate(cases):
         **counts,
         "match_confidence_brier": sum(squared) / len(squared) if squared else None,
     }
+
+
+async def collect(cases, resolver=None):
+    """Run the production resolver; expected IDs remain independent labels.
+
+    Cases choose id_field (lei, cik, domain, or canonical_name); no fuzzy match
+    is substituted for the label. Unresolved/ambiguous decisions abstain.
+    """
+    from services.resolver import resolve_company
+    resolver = resolver or resolve_company
+    outputs=[]
+    for case in cases:
+        result=await resolver(case['query'],country_code=case.get('country_code'))
+        field=case.get('id_field','canonical_name')
+        if field not in {'lei','cik','domain','canonical_name'}:
+            raise ValueError('Unsupported identity label field')
+        predicted=None
+        if result.resolution_status=='resolved' and not result.needs_disambiguation:
+            predicted=result.identifiers.get(field) if field in {'lei','cik'} else getattr(result,field)
+        outputs.append({**case,'predicted_id':predicted,'confidence':result.resolution_confidence/100,
+                        'resolution_status':result.resolution_status})
+    return {'evaluation':evaluate(outputs),'outputs':outputs}
