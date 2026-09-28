@@ -1,6 +1,6 @@
 # Final AI cleanup report
 
-Updated 2026-09-26. Engineering work is on `final-pre-fundraising-cleanup`, draft PR #10. Production promotion remains gated on backend staging activation and authenticated browser verification. A frontend preview is not a full-stack staging deployment.
+Updated 2026-09-28. Current product brand: Perspicil; see `PERSPICIL_REBRAND_REPORT.md`. Engineering work is on `final-pre-fundraising-cleanup`, draft PR #10. Production promotion remains gated on backend staging activation and authenticated browser verification. A frontend preview is not a full-stack staging deployment.
 
 ## 1. Executive Summary
 
@@ -40,11 +40,11 @@ The deployed preview homepage and login/MFA form were inspected in the browser. 
 
 ## 10. Deployment
 
-Vercel builds the branch successfully. Verified preview for `fc0a9ad0de1c5467e6ea47f6399d6f1eeb58d4b8`: https://privatelens-kzgu41ie6-bruh-gangs-projects.vercel.app. Its frontend still references the existing Render API; this is not an isolated backend staging environment. Render presents a login form and no backend hosting connector/session is available. Deployment requires secure Render sign-in, an isolated Postgres target and an approved worker/storage destination. A real founder contact from the supplied deck is published as frontend security.txt; backend contact remains configurable.
+Vercel builds the branch successfully. Verified preview for `fc0a9ad0de1c5467e6ea47f6399d6f1eeb58d4b8`: https://privatelens-kzgu41ie6-bruh-gangs-projects.vercel.app. Its frontend still references the existing Render API; this is not an isolated backend staging environment. The Render connector is available. Isolated PostgreSQL 16 database `dpg-das6rme0tbcc73e2v1hg-a` is available in Oregon (free expiry 2026-10-27). The user requested dashboard instructions for remaining Render configuration; see `ops/STAGING_RENDER_SETUP.md`. API/worker runtime secrets, verified mail and an approved backup destination are still unconfigured. A real founder contact from the supplied deck is published as frontend security.txt; backend contact remains configurable.
 
 ## 11. Backups / restore
 
-CI run 35797477198 passed an encrypted Postgres restore: all 29 tables / 1,228 rows matched by content fingerprints, migrations and restored application health passed. The expanded drill additionally replays a deletion recorded after the backup and checks idempotence before readiness. It is being verified on the latest commit. `scripts/deletion_ledger.py` exports/replays a separate encrypted minimal ledger. Production storage, current-ledger freshness, key custody, backup expiry, scheduling and restore RTO/RPO must be activated and measured in the real hosting environment. Ephemeral CI restore success is not a production backup certification.
+CI run 36206441543 at cleanup SHA `f721a586bee1754508aef700bfae5c1dbbc08c31` passed the expanded encrypted Postgres restore: all 31 tables / 3,359 rows matched by content fingerprints, migrations and restored readiness passed, and a post-backup deletion replayed idempotently. Rebrand CI is tracked separately in the rebrand report. `scripts/deletion_ledger.py` exports/replays a separate encrypted minimal ledger. Production storage, current-ledger freshness, key custody, backup expiry, scheduling and restore RTO/RPO must be activated and measured in the real hosting environment. Ephemeral CI restore success is not a production backup certification.
 
 ## 12. Database / operations
 
@@ -68,11 +68,11 @@ Entity-disjoint time partitions, leakage checks, ROC-AUC, average precision, Bri
 - Expanded Postgres run 36206051904: 150 tests passed in 32.82s, including the 1,000 completed-job fixture; restore CLI then exposed a missing SQLAlchemy model registration, now fixed.
 - Latest local full backend suite before the final additional regressions: 145 passed, five environment-specific skips. Focused policy/MFA/cohort regressions: 12 passed.
 - Latest local frontend lint/build: passed. Fresh SQLite migration/schema check: passed. Ruff correctness: passed.
-- Exact final remote CI results will be recorded after completion. Do not infer final green from an earlier SHA.
+- Cleanup CI run 36206441543 at `f721a586bee1754508aef700bfae5c1dbbc08c31`: all five jobs passed; Postgres 155 tests passed with two warnings. Rebrand verification is recorded separately; do not infer its results from this earlier SHA.
 
 ## 17. Remaining technical release gates
 
-1. Authenticate to Render and provision/select an isolated staging API, worker and Postgres database. Configure secure runtime keys, exact CORS/CSP origins, approved mail/delivery destinations, migration startup and readiness checks.
+1. Complete the requested Render dashboard setup for an isolated staging API/worker using the already-created Postgres database. Configure secure runtime keys, exact CORS/CSP origins, approved mail/delivery destinations, migration startup and readiness checks.
 2. Execute the deployed authenticated browser journeys, responsive/accessibility checks, staging migrations, worker/delivery verification, and an encrypted restore using the actual hosting/backup destination. CI proves code behavior, not this operational deployment.
 3. Activate offsite encrypted backups, separate current deletion-ledger storage/freshness monitoring, retention and alerting. Verify ownership/control-history reconciliation after restoring older backups; do not reopen a restore with unresolved ownership state.
 4. Review and remediate findings from those environment-specific checks before production promotion.

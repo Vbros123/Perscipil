@@ -201,7 +201,7 @@ def _entity_type_from_wikidata(instance_ids: list[str], fallback: str) -> str:
 
 
 def rank_candidate(query: str, candidate: "CompanyCandidate") -> int:
-    """0-100 match score. Not a PrivateScore."""
+    """0-100 match score. Not a Perspicil Score."""
     score = 0
     q_key = canonical_key(query)
     t_key = candidate.canonical_key or canonical_key(candidate.title)

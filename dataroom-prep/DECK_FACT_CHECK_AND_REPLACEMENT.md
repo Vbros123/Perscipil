@@ -18,7 +18,7 @@ changed. Replace text as below; the original PDF is preserved.
 
 ## Page 1 replacement
 
-PrivateLens
+Perspicil
 Private-company research intelligence
 Evidence-backed screening to help analysts decide where to investigate next.
 Research MVP. Temporary brand pending review.
@@ -27,14 +27,14 @@ Research MVP. Temporary brand pending review.
 
 Private-company diligence starts with fragmented evidence.
 Analysts combine public records, company-supplied information and licensed sources
-to confirm identity and understand potential concerns. PrivateLens organizes the
+to confirm identity and understand potential concerns. Perspicil organizes the
 available evidence and makes missing information visible. Pilot goal: measure
 analyst review time and usefulness on real screening tasks.
 
 ## Page 3 replacement
 
 One research view, with evidence and limitations attached.
-PrivateLens combines eligible signals into a 0–1000 research score where sufficient
+Perspicil combines eligible signals into a 0–1000 research score where sufficient
 evidence exists, with source links, coverage, confidence and missing-data notices.
 The current model defines six public-track and five licensed-track inputs; not all
 are available. A research score is not a credit rating or default prediction.

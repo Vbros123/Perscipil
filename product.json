@@ -1,8 +1,15 @@
 {
   "brand": {
-    "name": "PrivateLens",
-    "score": "PrivateScore",
-    "status": "Temporary names pending trademark review"
+    "name": "Perspicil",
+    "score": "Perspicil Score",
+    "status": "Product brand; legal entity and trademark review require founder/counsel input",
+    "short_name": "Perspicil",
+    "support_name": "Perspicil Support",
+    "email_sender_name": "Perspicil Security",
+    "api_title": "Perspicil API",
+    "title": "Perspicil | Private Company Intelligence",
+    "description": "Private company financial health research with evidence-weighted scoring, watchlists, reports, and peer comparison.",
+    "legal_entity": null
   },
   "stage": "Research MVP; release branch verified in CI, backend activation pending",
   "capabilities": [

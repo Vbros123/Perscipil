@@ -2,7 +2,7 @@
 
 # External Security Review Scope
 
-PrivateLens should not be described as bank-grade until an independent reviewer validates the production deployment.
+Perspicil should not be described as bank-grade until an independent reviewer validates the production deployment.
 
 ## Scope
 

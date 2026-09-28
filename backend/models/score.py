@@ -1,4 +1,4 @@
-"""Pydantic models for PrivateLens API responses."""
+"""Pydantic models for Perspicil API responses."""
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime

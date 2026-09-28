@@ -90,7 +90,7 @@ def test_multiple_fuzzy_matches_do_not_auto_select_a_subsidiary():
 
 
 def test_no_gleif_result_is_unavailable_not_negative():
-    lookup = select_gleif_match("PrivateLens Research LLC", [], "US")
+    lookup = select_gleif_match("Perspicil Research LLC", [], "US")
     assert lookup.status == "unavailable"
     assert lookup.selected is None
 
@@ -116,10 +116,10 @@ def test_known_companies_match_expected_legal_names():
 
 def test_company_without_lei_does_not_change_resolution():
     resolved = ResolvedCompany(
-        query_name="PrivateLens",
+        query_name="Perspicil",
         canonical_key="privatelens",
-        canonical_name="PrivateLens",
-        legal_name="PrivateLens",
+        canonical_name="Perspicil",
+        legal_name="Perspicil",
         resolution_status="unresolved",
         limited_identification=True,
     )

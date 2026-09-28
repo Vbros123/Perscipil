@@ -1,7 +1,9 @@
-"""Central configuration for PrivateLens API."""
+"""Central configuration for Perspicil API."""
 from functools import lru_cache
 import re
 from typing import Literal
+
+from core.brand import BRAND, NAME
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -10,7 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
-    APP_NAME: str = "PrivateLens API"
+    APP_NAME: str = BRAND["api_title"]
     APP_VERSION: str = "4.0.0"
     ENVIRONMENT: Literal["development", "test", "staging", "production"] = "development"
     DEBUG: bool = False
@@ -35,7 +37,7 @@ class Settings(BaseSettings):
     SESSION_COOKIE_NAME: str = "privatelens_session"
     SECURITY_CONTACT: str | None = None
     SECURITY_EXPIRES: str | None = None
-    PUBLIC_DATA_USER_AGENT: str = "PrivateLens/4.0"
+    PUBLIC_DATA_USER_AGENT: str = f"{NAME}/4.0"
     RATE_LIMIT_BACKEND: Literal["memory", "database"] = "memory"
     JWT_ISSUER: str = "privatelens-api"
     JWT_AUDIENCE: str = "privatelens-dashboard"
@@ -52,7 +54,7 @@ class Settings(BaseSettings):
     SMTP_USERNAME: str | None = None
     SMTP_PASSWORD: str | None = None
     SMTP_FROM_EMAIL: str = ""
-    SMTP_FROM_NAME: str = "PrivateLens Security"
+    SMTP_FROM_NAME: str = BRAND["email_sender_name"]
     SMTP_USE_TLS: bool = True
     RESEND_API_KEY: str | None = None
     RESEND_API_URL: str = "https://api.resend.com/emails"

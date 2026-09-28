@@ -1,5 +1,5 @@
 """
-PrivateLens API v4
+Perspicil API v4
 Private company financial health research platform.
 """
 from contextlib import asynccontextmanager
@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 
+from core.brand import NAME
 from core.config import get_settings
 from core.database import init_db
 from core.observability import configure_logging, configure_sentry, metrics
@@ -41,7 +42,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="PrivateLens API",
+    title=settings.APP_NAME,
     description="Evidence-weighted company research, saved reports, and individual accounts.",
     version=settings.APP_VERSION,
     docs_url=None if settings.is_production else "/docs",
@@ -135,7 +136,7 @@ app.include_router(compare_router)
 @app.get("/")
 def root():
     return {
-        "product": "PrivateLens",
+        "product": NAME,
         "tagline": "Evidence-weighted company research",
         "version": settings.APP_VERSION,
         "docs": "/docs",

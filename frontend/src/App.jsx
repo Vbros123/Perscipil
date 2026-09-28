@@ -26,7 +26,7 @@ import Watchlist from './pages/Watchlist'
 function Protected({ children, shell = true }) {
   const { isAuthenticated, loading } = useAuth()
 
-  if (loading) return <div className="screen-loader">Loading PrivateLens</div>
+  if (loading) return <div className="screen-loader">Loading Perspicil</div>
   if (!isAuthenticated) return <Redirect to="/login" />
   return shell ? <AppShell>{children}</AppShell> : children
 }
@@ -34,7 +34,7 @@ function Protected({ children, shell = true }) {
 function PublicOnly({ children }) {
   const { isAuthenticated, loading } = useAuth()
 
-  if (loading) return <div className="screen-loader">Loading PrivateLens</div>
+  if (loading) return <div className="screen-loader">Loading Perspicil</div>
   if (isAuthenticated) return <Redirect to="/dashboard" />
   return children
 }

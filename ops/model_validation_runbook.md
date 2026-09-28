@@ -2,7 +2,7 @@
 
 # Model Validation Runbook
 
-PrivateLens v4 ships in `shadow` mode. A numeric rating must not be enabled until an independent reviewer approves an out-of-time validation packet.
+Perspicil v4 ships in `shadow` mode. A numeric rating must not be enabled until an independent reviewer approves an out-of-time validation packet.
 
 ## Holdout record
 

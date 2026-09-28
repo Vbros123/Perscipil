@@ -1,4 +1,4 @@
-"""Independently recompute every published PrivateScore from the mock gateway's
+"""Independently recompute every published Perspicil Score from the mock gateway's
 raw inputs and compare against what the API returned."""
 import json
 import urllib.parse

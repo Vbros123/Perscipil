@@ -44,7 +44,7 @@ export default function Pricing() {
       </section>
       <section className="panel"><h2>Capability status</h2>{CAPABILITIES.map(c => <p key={c.name}><strong>{c.name}: {c.status}</strong> — {c.note}</p>)}</section>
       <div className="notice notice-info">
-        PrivateLens is a research tool and does not provide credit, investment, legal, or lending advice.
+        Perspicil is a research tool and does not provide credit, investment, legal, or lending advice.
       </div>
     </div>
   )

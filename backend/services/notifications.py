@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 import httpx
 from sqlalchemy import select, update, or_
+from core.brand import NAME
 from core.database import SessionLocal
 from core.config import get_settings
 from models.organizations import Delivery, OrganizationResource
@@ -52,7 +53,7 @@ class ConfiguredDeliveryProvider:
             await asyncio.to_thread(
                 _send_email,
                 target["address"],
-                "PrivateLens scheduled monitoring update",
+                f"{NAME} scheduled monitoring update",
                 f"A material research change was detected. Event: {event_id}. Sign in to review the evidence.",
             )
             return

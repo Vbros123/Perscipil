@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from core.brand import NAME
 from core.database import get_db
 from core.security import get_current_user, verify_password, hash_security_token
 from core.mfa import cipher, consume
@@ -68,12 +69,12 @@ async def enroll(
     db.commit()
     uri = (
         "otpauth://totp/"
-        + quote("PrivateLens:" + user.email, safe="")
+        + quote(NAME + ":" + user.email, safe="")
         + "?"
         + urlencode(
             {
                 "secret": secret,
-                "issuer": "PrivateLens",
+                "issuer": NAME,
                 "algorithm": "SHA1",
                 "digits": 6,
                 "period": 30,

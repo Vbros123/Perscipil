@@ -1,4 +1,4 @@
-"""Database session management for PrivateLens."""
+"""Database session management for Perspicil."""
 from collections.abc import Generator
 
 from sqlalchemy import create_engine

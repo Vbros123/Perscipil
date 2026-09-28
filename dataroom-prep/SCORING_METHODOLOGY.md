@@ -1,6 +1,6 @@
 # Scoring methodology — current research model
 
-PrivateScore is a deterministic, evidence-weighted research score on a 0–1000
+Perspicil Score is a deterministic, evidence-weighted research score on a 0–1000
 scale. Use it to prioritize analyst review and inspect source evidence. It is
 not a credit rating, probability of default, underwriting approval, investment
 recommendation, or validated forecast. NOT YET VALIDATED DUE TO MISSING OUTCOME DATA.

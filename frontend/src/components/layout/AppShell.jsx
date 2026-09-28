@@ -1,3 +1,4 @@
+import BrandMark from '../common/BrandMark'
 import PolicyReview from '../common/PolicyReview'
 import { BRAND } from '../../lib/brand'
 import {
@@ -8,7 +9,6 @@ import {
   History,
   LayoutDashboard,
   LogOut,
-  ScanSearch,
   Settings,
   User,
 } from 'lucide-react'
@@ -53,7 +53,7 @@ export default function AppShell({ children }) {
     <div className="app-frame">
       <aside className="side-nav">
         <NavLink to="/dashboard" className="brand">
-          <span className="brand-mark"><ScanSearch size={17} /></span>
+          <BrandMark />
           <span>
             <strong>{BRAND.name}</strong>
             <small>Company intelligence</small>
