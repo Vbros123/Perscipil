@@ -1,7 +1,8 @@
 # Cleanup rollout — current runbook
 
 1. Review FINAL_AI_CLEANUP_REPORT.md and PR #10. GitHub and Vercel are connected;
-   backend Render sign-in and isolated staging access remain required.
+   Render connector is available; owner-run isolated API/worker setup remains
+   required (see STAGING_RENDER_SETUP.md).
 2. Provision/use approved Postgres. Take encrypted backup, validate checksum,
    restore into isolated test database and compare counts before migration.
 3. Install Python 3.12 locked requirements. Set strong JWT/METRICS secrets, real

@@ -54,7 +54,7 @@ checks, even though the Render service itself is isolated staging.
 | `POLICIES_PUBLISHED` | `false` |
 | `POLICY_REACCEPTANCE_REQUIRED` | `false` |
 | `ALLOWED_HOSTS` | Actual staging API hostname, without `https://` |
-| `FRONTEND_URL` | Exact HTTPS Vercel branch-preview URL |
+| `FRONTEND_URL` | `https://privatelens-git-final-pre-fundraisin-928d23-bruh-gangs-projects.vercel.app` |
 | `APP_PUBLIC_URL` | Same exact frontend URL; used in verification/reset email links |
 | `ALLOWED_ORIGINS` | Same exact frontend URL, without trailing slash; no wildcard |
 | `SMTP_FROM_NAME` | `Perspicil Security` |
@@ -115,13 +115,16 @@ A passing API health check alone does not prove worker operation.
 
 ## 6. Backup and restore activation
 
-Do not restore over either live database. The existing `ops/backup_runbook.md`
-requires an approved private object-storage destination, independently stored
+Do not restore over either live database. The current `ops/cleanup_deployment.md` requires an approved private object-storage
+destination, independently stored
 backup/deletion-ledger encryption keys, scheduled backups and a separate disposable
 restore target. The staging owner must choose and provision that destination;
 credentials belong in the operator environment, not chat.
 
-Then run the documented encrypted backup/restore procedure and deletion-ledger
+The older `ops/backup_runbook.md` is superseded; its direct plaintext S3-upload
+example is disabled by the script and must not be used.
+
+Then run the approved encrypted backup/restore procedure and deletion-ledger
 replay against that disposable target. Record table/content fingerprint matches,
 readiness after replay, worker behavior and measured recovery time. Keep access
 closed while reconciling ownership/control history. CI's local Postgres drill is

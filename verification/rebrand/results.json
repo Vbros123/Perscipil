@@ -1,0 +1,72 @@
+{
+  "date": "2026-09-28",
+  "code_commit": "b134100809039dc78bcc2d009734050ee3e72136",
+  "ci_run": 36477859083,
+  "ci_jobs": {
+    "backend": "success",
+    "frontend": "success",
+    "provider-gateway": "success",
+    "postgres": "success",
+    "secret-history": "success"
+  },
+  "postgres": {
+    "tests_passed": 155,
+    "warnings": 2,
+    "restore_tables": 31,
+    "restore_rows": 3359,
+    "encrypted": true,
+    "readiness": true,
+    "post_backup_deletion_replayed": true
+  },
+  "local_backend": {
+    "passed": 149,
+    "skipped": 6,
+    "warnings": 2
+  },
+  "gateway_passed": 3,
+  "local_frontend": [
+    "lint passed",
+    "build passed",
+    "npm audit: 0 vulnerabilities"
+  ],
+  "local_backend_scans": [
+    "pip-audit: no known vulnerabilities",
+    "Ruff correctness passed",
+    "Bandit: high-severity gate passed; 6 low findings",
+    "configured secret-pattern scan passed"
+  ],
+  "preview": {
+    "id": "dpl_HS5gq8Jh7ZewbUKkuqzoS3iHevdY",
+    "url": "https://privatelens-bqk7xd0v3-bruh-gangs-projects.vercel.app",
+    "status": "READY",
+    "browser_pages": [
+      "homepage",
+      "login with MFA input",
+      "signup",
+      "forgot-password"
+    ],
+    "brand_image_loaded": true,
+    "metadata_verified": true,
+    "signup_unlabelled_inputs": 0,
+    "desktop_horizontal_overflow": false,
+    "application_console_errors_seen": false,
+    "excluded_console_errors": "browser extension metadata messages"
+  },
+  "deck": {
+    "path": "dataroom-prep/Perspicil_Corrected_Deck.pdf",
+    "sha256": "8cca7e17815120b44eaddd74586dfe1d7f132b57debd7e01eeb7ba5bfcb2e50a",
+    "pages": 7,
+    "visual_review": "all 7 pages",
+    "old_brand_text_matches": 0,
+    "non_brand_wording_preserved": true
+  },
+  "not_verified": [
+    "authenticated staging E2E",
+    "actual mobile devices/cross-browser",
+    "full accessibility automation",
+    "live Render API and worker",
+    "real email delivery",
+    "real hosting offsite backup/restore",
+    "production release"
+  ]
+}

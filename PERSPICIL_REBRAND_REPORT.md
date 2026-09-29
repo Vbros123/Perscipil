@@ -1,7 +1,7 @@
 # Perspicil rebrand report
 
-Updated 2026-09-28. Implementation complete locally; deployment verification below
-is deliberately separate from code completion. Production release remains gated.
+Updated 2026-09-28. Rebrand code is pushed and preview-verified; CI is green for the code revision.
+Deployment verification below remains separate from code completion. Production release remains gated.
 
 ## Brand Migration
 
@@ -33,17 +33,24 @@ social metadata and transactional email header use these assets.
 
 ## Pitch Deck
 
-The corrected seven-slide deck is being rebranded as a separate
-`output/pdf/Perspicil_Corrected_Deck.pdf`. Financial/customer/validation claims,
-market caveats and backend-activation limitations must remain unchanged. Final
-visual verification and output status will be recorded after the preview capture.
+The final separate copy is `output/pdf/Perspicil_Corrected_Deck.pdf`, also committed
+at `dataroom-prep/Perspicil_Corrected_Deck.pdf`. All seven pages were rendered and
+visually checked. Cover logo, title, footers, score title, metadata and homepage
+screenshot use the new brand. Deprecated raster assets were removed. Text comparison
+confirms every non-brand word is preserved, including market assumptions and
+customer/funding/validation/backend-activation caveats. No old-brand PDF text remains.
 
 ## Website / Product
 
-Frontend lint/build passed. Public preview visual inspection and responsive checks
-will be recorded against the exact rebrand commit. Authenticated full-stack staging
-journeys require the isolated Render API/worker and real email configuration.
-Do not infer browser success from backend tests.
+Browser-inspected the exact `b134100809039dc78bcc2d009734050ee3e72136` preview:
+homepage, login/MFA input, signup and forgot-password. Branding/logo loads, metadata
+uses Perspicil and preview-local social art, signup inputs have accessible labels,
+and desktop has no horizontal overflow. Fixed an existing body font-inheritance
+bug and bounded session discovery to 15 seconds so an unreachable API cannot leave
+public auth pages loading indefinitely. Login renders after that bound. No app-origin
+console errors observed; browser-extension metadata errors were excluded.
+Authenticated staging journeys, mobile/cross-browser tests and full accessibility
+automation remain unverified. Public-page inspection is not an authenticated E2E pass.
 
 ## Email
 
@@ -71,6 +78,11 @@ Before this rebrand, cleanup branch remote head was
 frontend: `3ed1df1d58e821c246a91b04982f5511ce22d250`; Render production API remained
 `3060359ae6b7a55ff9384db8b36b7472c9634905`. They have not been promoted by this rebrand.
 Isolated Render database `dpg-das6rme0tbcc73e2v1hg-a` is available, expires 2026-10-27.
+Rebrand code commit: `b134100809039dc78bcc2d009734050ee3e72136`.
+Verified Vercel preview: `dpl_HS5gq8Jh7ZewbUKkuqzoS3iHevdY`, READY,
+https://privatelens-bqk7xd0v3-bruh-gangs-projects.vercel.app .
+Branch alias: https://privatelens-git-final-pre-fundraisin-928d23-bruh-gangs-projects.vercel.app .
+The preview still points to the legacy API, not an isolated full-stack staging deployment.
 The staging API and worker are not yet deployed. User requested dashboard steps:
 `ops/STAGING_RENDER_SETUP.md` provides the complete procedure.
 
@@ -80,8 +92,14 @@ Local backend: 149 passed, six environment-specific skips, two deprecation warni
 Gateway: three passed. Ruff correctness passed; Bandit high-severity gate passed
 (six low-severity findings remain, not represented as zero findings). Frontend
 lint/build passed. Fresh SQLite migration and schema diff passed.
-Current dependency audits, remote CI/Postgres restore and preview verification are
-pending at this checkpoint; results will be recorded after push.
+Both local dependency audits passed (npm: zero vulnerabilities; pip: no known
+vulnerabilities). Full CI run **36477859083** at the exact code SHA above passed
+all five jobs: backend, frontend, provider-gateway, postgres and secret-history.
+Postgres: **155 passed**, two deprecation warnings. Encrypted restore: **31 tables /
+3,359 rows** matched, readiness passed, post-backup deletion replay and idempotence
+passed. Earlier rebrand run 36477602640 also passed all five jobs. Evidence:
+`verification/rebrand/results.json`. Final documentation/deck commits do not change
+runtime code; their separate CI status is available on PR #10.
 
 ## Search Audit
 

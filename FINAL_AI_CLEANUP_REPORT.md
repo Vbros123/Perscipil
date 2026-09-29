@@ -60,7 +60,7 @@ Entity-disjoint time partitions, leakage checks, ROC-AUC, average precision, Bri
 
 ## 15. Corrected deck
 
-`PrivateLens_Corrected_Deck.pdf` is complete as a separate saved copy, retaining seven original slide layouts. All slides were visually inspected; a leftover title glyph was removed. Updated signal counts and source availability, replaced stale screenshots, removed simulated-evidence and unsupported performance/activation implications, labeled target pricing/customers as proposed. Founder market figures retain a verification caveat. See `docs/DECK_CHANGELOG.md`.
+`PrivateLens_Corrected_Deck.pdf` is complete as a separate saved copy, retaining seven original slide layouts. All slides were visually inspected; a leftover title glyph was removed. Updated signal counts and source availability, replaced stale screenshots, removed simulated-evidence and unsupported performance/activation implications, labeled target pricing/customers as proposed. Founder market figures retain a verification caveat. The current Perspicil copy is `dataroom-prep/Perspicil_Corrected_Deck.pdf`, with all seven pages visually reviewed and non-brand claims unchanged. See `docs/DECK_CHANGELOG.md`.
 
 ## 16. Verification evidence
 
@@ -85,4 +85,4 @@ Founder/counsel: approved policy text and retention periods, trademark/name clea
 
 ## 19. Readiness
 
-Implemented and inspectable research MVP; public frontend preview available. Institutional staging verification remains gated on secure backend access. No production promotion or enterprise readiness certification. Updated capability metadata and deployment/API documentation describe implemented versus activated behavior explicitly.
+Implemented and inspectable research MVP; public frontend preview available. Institutional staging verification remains gated on the owner-run Render setup in `ops/STAGING_RENDER_SETUP.md`. No production promotion or enterprise readiness certification. Updated capability metadata and deployment/API documentation describe implemented versus activated behavior explicitly.
