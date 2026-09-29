@@ -1,3 +1,4 @@
+import BrandMark from '../components/common/BrandMark'
 import { BRAND } from '../lib/brand'
 import { ArrowRight, BarChart3, Database, ScanSearch, ShieldCheck, SlidersHorizontal } from 'lucide-react'
 import { Link } from '../router'
@@ -17,7 +18,7 @@ export default function Landing() {
     <main className="public-page">
       <nav className="public-nav">
         <Link to="/" className="brand">
-          <span className="brand-mark"><ScanSearch size={17} /></span>
+          <BrandMark />
           <span><strong>{BRAND.name}</strong><small>Company intelligence</small></span>
         </Link>
         <div>
@@ -31,7 +32,7 @@ export default function Landing() {
           <div className="eyebrow">Private-company diligence</div>
           <h1>Private-company research, grounded in evidence.</h1>
           <p>
-            PrivateLens screens private companies with a deterministic scoring model.
+            {BRAND.name} screens private companies with a deterministic scoring model.
             Public research scores reflect available evidence and coverage. They are not validated default predictions or formal credit ratings.
           </p>
           <div className="hero-actions">
@@ -95,7 +96,7 @@ export default function Landing() {
       </section>
 
       <footer className="public-footer">
-        <span>PrivateLens is a research tool and does not provide credit, investment, legal, or lending advice.</span>
+        <span>{BRAND.name} is a research tool and does not provide credit, investment, legal, or lending advice.</span>
       </footer>
     </main>
   )

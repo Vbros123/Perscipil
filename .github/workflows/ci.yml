@@ -74,3 +74,52 @@ jobs:
           cache-dependency-path: provider_gateway/requirements.txt
       - run: pip install -r requirements.txt
       - run: PYTHONPATH=. pytest -q
+
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: privatelens_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      ENVIRONMENT: test
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/privatelens_test
+      RESTORE_TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/privatelens_restore
+      JWT_SECRET: test-secret-value-that-is-long-enough-for-production-checks
+      AUTH_TOKEN_RETURN_IN_RESPONSE: "true"
+      PROVIDER_BUDGETS_ENABLED: "false"
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: alembic upgrade head
+      - run: alembic check
+      - run: pytest -q
+      - run: createdb -h localhost -U postgres privatelens_restore
+      - run: PYTHONPATH=. python scripts/restore_drill.py
+
+  secret-history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Scan full reachable Git history with redacted output
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 git /repo --log-opts=--all --redact=100 --no-banner
+      - name: Scan working tree with redacted output
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 dir /repo --redact=100 --no-banner

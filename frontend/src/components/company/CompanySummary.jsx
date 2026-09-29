@@ -1,3 +1,4 @@
+import { BRAND } from '../../lib/brand'
 import { Activity, Clock3, Database, Gauge, Shield } from 'lucide-react'
 
 import MetricCard from '../common/MetricCard'
@@ -80,7 +81,7 @@ export default function CompanySummary({ result }) {
           <ScoreBand score={Number(nested.value ?? result.private_score)} rated={rated} />
         </div>
         <div>
-          <div className="eyebrow">{rated ? (limited ? 'PrivateScore · limited evidence' : 'PrivateScore') : 'Coverage check'}</div>
+          <div className="eyebrow">{rated ? (limited ? `${BRAND.score} · limited evidence` : BRAND.score) : 'Coverage check'}</div>
           <h2>{result.company?.canonicalName || result.canonical_name || result.company_name}</h2>
           <p className="report-entity-type">{entityLabel(result.company?.entityType || result.entity?.entity_type)}</p>
           {result.company?.lei && (
@@ -95,7 +96,7 @@ export default function CompanySummary({ result }) {
           )}
           <div className="score-trio">
             <div>
-              <span>PrivateScore</span>
+              <span>{BRAND.score}</span>
               <strong>{scoreValue}{rated ? ' / 1000' : ''}</strong>
             </div>
             <div>

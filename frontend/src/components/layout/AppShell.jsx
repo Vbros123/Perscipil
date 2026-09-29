@@ -1,3 +1,5 @@
+import BrandMark from '../common/BrandMark'
+import PolicyReview from '../common/PolicyReview'
 import { BRAND } from '../../lib/brand'
 import {
   BarChart3,
@@ -7,7 +9,6 @@ import {
   History,
   LayoutDashboard,
   LogOut,
-  ScanSearch,
   Settings,
   User,
 } from 'lucide-react'
@@ -31,6 +32,7 @@ const sections = [
   {
     label: 'Workspace',
     items: [
+      { to: '/workspaces', label: 'Team workspaces', icon: User },
       { to: '/developer', label: 'Developer', icon: Code2 },
       { to: '/pricing', label: 'Pricing', icon: CreditCard },
       { to: '/settings', label: 'Settings', icon: Settings },
@@ -51,7 +53,7 @@ export default function AppShell({ children }) {
     <div className="app-frame">
       <aside className="side-nav">
         <NavLink to="/dashboard" className="brand">
-          <span className="brand-mark"><ScanSearch size={17} /></span>
+          <BrandMark />
           <span>
             <strong>{BRAND.name}</strong>
             <small>Company intelligence</small>
@@ -89,7 +91,7 @@ export default function AppShell({ children }) {
       </aside>
       <main className="workspace">
         <TopBar />
-        {children}
+        <PolicyReview />{children}
       </main>
     </div>
   )

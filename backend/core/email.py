@@ -1,6 +1,7 @@
 """Transactional email delivery."""
 from __future__ import annotations
 
+from html import escape
 import logging
 import smtplib
 from email.message import EmailMessage
@@ -8,6 +9,7 @@ from urllib.parse import urlencode
 
 import httpx
 
+from core.brand import NAME
 from core.config import get_settings
 
 logger = logging.getLogger("privatelens.email")
@@ -19,6 +21,14 @@ class EmailDeliveryError(RuntimeError):
 
 
 def _send_email(to_email: str, subject: str, text_body: str, html_body: str | None = None) -> None:
+    if html_body:
+        logo_url = escape(f"{settings.APP_PUBLIC_URL.rstrip('/')}/brand/perspicil-32.png", quote=True)
+        html_body = (
+            f'<div style="font-family:Arial,sans-serif;color:#182d2a">'
+            f'<p><img src="{logo_url}" width="32" height="32" alt="" '
+            f'style="vertical-align:middle;margin-right:8px" />'
+            f'<strong>{escape(NAME)}</strong></p>{html_body}</div>'
+        )
     if settings.EMAIL_DELIVERY_MODE == "disabled":
         return
 
@@ -73,29 +83,29 @@ def send_password_reset_email(to_email: str, token: str) -> None:
     query = urlencode({"token": token})
     reset_url = f"{settings.APP_PUBLIC_URL.rstrip('/')}/reset-password?{query}"
     text = (
-        "Reset your PrivateLens password using this secure link:\n\n"
+        f"Reset your {NAME} password using this secure link:\n\n"
         f"{reset_url}\n\n"
         "This link expires soon. If you did not request it, ignore this email."
     )
     html = (
-        "<p>Reset your PrivateLens password using this secure link:</p>"
+        f"<p>Reset your {NAME} password using this secure link:</p>"
         f'<p><a href="{reset_url}">Reset password</a></p>'
         "<p>This link expires soon. If you did not request it, ignore this email.</p>"
     )
-    _send_email(to_email, "Reset your PrivateLens password", text, html)
+    _send_email(to_email, f"Reset your {NAME} password", text, html)
 
 
 def send_email_verification(to_email: str, token: str) -> None:
     query = urlencode({"token": token})
     verify_url = f"{settings.APP_PUBLIC_URL.rstrip('/')}/verify-email?{query}"
     text = (
-        "Verify your PrivateLens email using this secure link:\n\n"
+        f"Verify your {NAME} email using this secure link:\n\n"
         f"{verify_url}\n\n"
-        "If you did not create a PrivateLens account, ignore this email."
+        f"If you did not create a {NAME} account, ignore this email."
     )
     html = (
-        "<p>Verify your PrivateLens email using this secure link:</p>"
+        f"<p>Verify your {NAME} email using this secure link:</p>"
         f'<p><a href="{verify_url}">Verify email</a></p>'
-        "<p>If you did not create a PrivateLens account, ignore this email.</p>"
+        f"<p>If you did not create a {NAME} account, ignore this email.</p>"
     )
-    _send_email(to_email, "Verify your PrivateLens email", text, html)
+    _send_email(to_email, f"Verify your {NAME} email", text, html)

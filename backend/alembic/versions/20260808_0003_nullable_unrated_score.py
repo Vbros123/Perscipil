@@ -21,8 +21,10 @@ depends_on = None
 def upgrade() -> None:
     op.add_column("company_searches", sa.Column("scoring_status", sa.String(length=40), nullable=True))
     op.add_column("saved_companies", sa.Column("scoring_status", sa.String(length=40), nullable=True))
-    op.alter_column("company_searches", "private_score", existing_type=sa.Integer(), nullable=True)
-    op.alter_column("company_reports", "private_score", existing_type=sa.Integer(), nullable=True)
+    with op.batch_alter_table("company_searches") as batch:
+        batch.alter_column("private_score", existing_type=sa.Integer(), nullable=True)
+    with op.batch_alter_table("company_reports") as batch:
+        batch.alter_column("private_score", existing_type=sa.Integer(), nullable=True)
 
     # Backfill: rows recorded while the placeholder was in effect are unrated and
     # must not keep a numeric score.
@@ -54,7 +56,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute("UPDATE company_searches SET private_score = 0 WHERE private_score IS NULL")
     op.execute("UPDATE company_reports SET private_score = 0 WHERE private_score IS NULL")
-    op.alter_column("company_reports", "private_score", existing_type=sa.Integer(), nullable=False)
-    op.alter_column("company_searches", "private_score", existing_type=sa.Integer(), nullable=False)
+    with op.batch_alter_table("company_reports") as batch:
+        batch.alter_column("private_score", existing_type=sa.Integer(), nullable=False)
+    with op.batch_alter_table("company_searches") as batch:
+        batch.alter_column("private_score", existing_type=sa.Integer(), nullable=False)
     op.drop_column("saved_companies", "scoring_status")
     op.drop_column("company_searches", "scoring_status")

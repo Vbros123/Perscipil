@@ -1,3 +1,4 @@
+import { BRAND } from '../../lib/brand'
 import { ratingTone } from '../../lib/score'
 
 const clamp = (value, low = 0, high = 1000) => Math.max(low, Math.min(high, Number(value) || 0))
@@ -12,7 +13,7 @@ export default function ScoreDial({ score = 0, rating, size = 164 }) {
 
   return (
     <div className={`score-dial tone-${tone}`} style={{ width: size, height: size }}>
-      <svg viewBox="0 0 160 160" role="img" aria-label={isUnrated ? 'Financial health rating unavailable' : `PrivateScore ${normalized} out of 1000`}>
+      <svg viewBox="0 0 160 160" role="img" aria-label={isUnrated ? 'Financial health rating unavailable' : `${BRAND.score} ${normalized} out of 1000`}>
         <circle cx="80" cy="80" r={radius} fill="none" stroke="var(--surface-dim)" strokeWidth="8" />
         <circle
           cx="80"

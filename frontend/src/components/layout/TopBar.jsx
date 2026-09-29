@@ -22,7 +22,7 @@ export default function TopBar() {
   const { user } = useAuth()
   const title = useMemo(() => {
     if (location.pathname.startsWith('/reports')) return 'Company report'
-    return titles[location.pathname] || 'PrivateLens'
+    return titles[location.pathname] || 'Perspicil'
   }, [location.pathname])
 
   const submit = (event) => {
@@ -47,7 +47,7 @@ export default function TopBar() {
         <span>{user?.first_name?.[0] || user?.email?.[0] || 'P'}</span>
         <div>
           <strong>{user?.first_name || 'Workspace'}</strong>
-          <small>{user?.company || 'PrivateLens'}</small>
+          <small>{user?.company || 'Perspicil'}</small>
         </div>
       </div>
     </header>

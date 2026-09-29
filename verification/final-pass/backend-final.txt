@@ -1,0 +1,3 @@
+Command: python -m pytest -q (backend)
+139 passed, 2 skipped, 2 warnings in 20.48s
+Skipped live provider checks; warnings: Starlette/httpx and AnyIO deprecations.

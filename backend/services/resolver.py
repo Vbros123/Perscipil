@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
+from core.provider_budget import ProviderClient, HOOKS
 
 from core.config import get_settings
 
@@ -200,7 +201,7 @@ def _entity_type_from_wikidata(instance_ids: list[str], fallback: str) -> str:
 
 
 def rank_candidate(query: str, candidate: "CompanyCandidate") -> int:
-    """0-100 match score. Not a PrivateScore."""
+    """0-100 match score. Not a Perspicil Score."""
     score = 0
     q_key = canonical_key(query)
     t_key = candidate.canonical_key or canonical_key(candidate.title)
@@ -576,7 +577,7 @@ async def resolve_company(name: str, selected_title: str | None = None, country_
 
 async def _resolve_from_public_sources(name: str, key: str, selected_title: str | None = None) -> ResolvedCompany:
     try:
-        async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
+        async with ProviderClient(event_hooks=HOOKS, timeout=settings.HTTP_TIMEOUT) as client:
             if selected_title:
                 summary = await _wikipedia_summary(client, selected_title)
                 if summary:

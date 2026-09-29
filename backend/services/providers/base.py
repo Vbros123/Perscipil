@@ -42,7 +42,7 @@ def unavailable_licensed_signal(name: str, category: str, source: str) -> dict[s
         "sourceUrl": None,
         "retrievedAt": None,
         "explanation": (
-            "Licensed evidence is not configured. PrivateLens does not invent credit, "
+            "Licensed evidence is not configured. Perspicil does not invent credit, "
             "cash-flow, or legal records."
         ),
         "weight": 0,

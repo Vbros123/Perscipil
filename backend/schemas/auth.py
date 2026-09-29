@@ -34,6 +34,7 @@ class SignupRequest(UserBase):
 
 
 class LoginRequest(BaseModel):
+    mfa_code: str = Field(default="", max_length=80)
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
 

@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
+from core.provider_budget import HOOKS, ProviderClient
 
 from core.config import get_settings
 from services.resolver import canonical_key, names_match
@@ -474,7 +475,7 @@ class SecProvider:
     async def resolve_cik(self, name: str, aliases: list[str] | None = None) -> SecLookup:
         queries = [item for item in [name, *(aliases or [])] if item]
         try:
-            async with httpx.AsyncClient(timeout=_http_timeout()) as client:
+            async with ProviderClient(event_hooks=HOOKS, timeout=_http_timeout()) as client:
                 rows = await self._ticker_rows(client)
             best: dict[str, Any] | None = None
             for query in queries:
@@ -507,7 +508,7 @@ class SecProvider:
                 if resolved.selected is None:
                     return resolved
                 selected = resolved.selected
-            async with httpx.AsyncClient(timeout=_http_timeout(read=max(12.0, float(settings.HTTP_TIMEOUT)))) as client:
+            async with ProviderClient(event_hooks=HOOKS, timeout=_http_timeout(read=max(12.0, float(settings.HTTP_TIMEOUT)))) as client:
                 submissions_resp = await client.get(
                     SEC_SUBMISSIONS_URL.format(cik=selected.cik),
                     headers=DATA_SEC_HEADERS,

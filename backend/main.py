@@ -1,5 +1,5 @@
 """
-PrivateLens API v4
+Perspicil API v4
 Private company financial health research platform.
 """
 from contextlib import asynccontextmanager
@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 
+from core.brand import NAME
 from core.config import get_settings
 from core.database import init_db
 from core.observability import configure_logging, configure_sentry, metrics
@@ -41,7 +42,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="PrivateLens API",
+    title=settings.APP_NAME,
     description="Evidence-weighted company research, saved reports, and individual accounts.",
     version=settings.APP_VERSION,
     docs_url=None if settings.is_production else "/docs",
@@ -115,6 +116,12 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 from routers.workflows import router as workflows_router
+from routers.organizations import router as organizations_router
+from routers.mfa import router as mfa_router
+app.include_router(mfa_router)
+from routers.customer import router as customer_router
+app.include_router(customer_router)
+app.include_router(organizations_router)
 app.include_router(workflows_router)
 app.include_router(auth_router)
 app.include_router(compliance_router)
@@ -129,7 +136,7 @@ app.include_router(compare_router)
 @app.get("/")
 def root():
     return {
-        "product": "PrivateLens",
+        "product": NAME,
         "tagline": "Evidence-weighted company research",
         "version": settings.APP_VERSION,
         "docs": "/docs",
@@ -156,7 +163,8 @@ def health():
 def get_metrics(request: Request):
     provided = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
     if settings.METRICS_TOKEN and secrets.compare_digest(provided, settings.METRICS_TOKEN):
-        return metrics.render_prometheus()
+        from services.operations import queue_metrics
+        return metrics.render_prometheus() + queue_metrics()
     return PlainTextResponse("not found\n", status_code=404)
 
 @app.get("/.well-known/security.txt", response_class=PlainTextResponse)
@@ -175,3 +183,16 @@ def security_txt():
 def capabilities():
     from core.capabilities import PRODUCT
     return PRODUCT
+
+
+@app.get("/api/ready")
+def readiness():
+    from sqlalchemy import text
+    from sqlalchemy.exc import SQLAlchemyError
+    from core.database import engine
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        return JSONResponse(status_code=503,content={"status":"unavailable","dependency":"database"})
+    return {"status":"ready"}

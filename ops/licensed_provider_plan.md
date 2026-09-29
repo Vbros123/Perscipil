@@ -12,7 +12,7 @@ Use for commercial credit and B2B payment behavior. Creditsafe documents company
 - Authentication: username/password exchanged for a one-hour bearer token
 - Sandbox base URL: `https://connect.sandbox.creditsafe.com/v1`
 - Production base URL: `https://connect.creditsafe.com/v1`
-- Procurement: request a Connect API quote and written rights for derived PrivateLens outputs, display, retention, and monitoring
+- Procurement: request a Connect API quote and written rights for derived Perspicil outputs, display, retention, and monitoring
 
 ### Middesk
 
@@ -29,12 +29,12 @@ Use only for company-authorized accounting and banking aggregates. Codat connect
 
 - Official docs: https://docs.codat.io/
 - Procurement: contact Codat, configure the hosted authorization flow, obtain explicit business consent, and retain the consent artifact and Codat company/connection IDs
-- Data minimization: send ratios and aggregates to PrivateLens; do not store raw transactions in the scoring API
+- Data minimization: send ratios and aggregates to Perspicil; do not store raw transactions in the scoring API
 
 ## Activation order
 
 1. Sign Creditsafe contract and run its sandbox against a labeled entity-match set.
-2. Deploy `provider_gateway/` with Creditsafe credentials and keep PrivateLens in `DATA_MODE=public`.
+2. Deploy `provider_gateway/` with Creditsafe credentials and keep Perspicil in `DATA_MODE=public`.
 3. Verify gateway authentication, exact entity matches, provider timestamps, and rate-limit behavior in staging.
 4. Add Middesk business verification plus webhook persistence to the gateway after the contract and jurisdiction review.
 5. Add the Codat consent flow and connection-ID mapping; never query it for companies that did not authorize access.

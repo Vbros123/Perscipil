@@ -1,4 +1,6 @@
-import { ArrowRight, ScanSearch } from 'lucide-react'
+import { BRAND } from '../lib/brand'
+import BrandMark from '../components/common/BrandMark'
+import { ArrowRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from '../router'
 
@@ -45,12 +47,12 @@ export default function Signup() {
   return (
     <main className="auth-page">
       <Link to="/" className="brand auth-brand">
-        <span className="brand-mark"><ScanSearch size={17} /></span>
-        <span><strong>PrivateLens</strong><small>Company intelligence</small></span>
+        <BrandMark />
+        <span><strong>{BRAND.name}</strong><small>Company intelligence</small></span>
       </Link>
       <section className="auth-card wide">
         <div className="eyebrow">Create workspace</div>
-        <h1>Start using PrivateLens</h1>
+        <h1>Start using Perspicil</h1>
         <ErrorNotice message={error} />
         <form onSubmit={submit} className="form-stack">
           <div className="form-grid">

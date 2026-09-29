@@ -1,4 +1,4 @@
-"""Database session management for PrivateLens."""
+"""Database session management for Perspicil."""
 from collections.abc import Generator
 
 from sqlalchemy import create_engine
@@ -19,6 +19,7 @@ engine = create_engine(
     database_url,
     connect_args=connect_args,
     pool_pre_ping=True,
+    **({"pool_size": 5, "max_overflow": 5, "pool_timeout": 5} if not database_url.startswith("sqlite") else {}),
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -40,7 +41,7 @@ def init_db() -> None:
     from models.settings import UserSettings  # noqa: F401
     from models.user import AuthAuditEvent, SecurityToken, User  # noqa: F401
 
-    from models import workflows  # noqa: F401
+    from models import consent, mfa, operations, organizations, workflows  # noqa: F401
     Base.metadata.create_all(bind=engine)
 
 # SQLite must enforce the same ownership cascade constraints as Postgres.

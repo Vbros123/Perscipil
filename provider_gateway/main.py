@@ -12,7 +12,7 @@ settings = get_settings()
 settings.validate_runtime()
 creditsafe = CreditsafeAdapter(settings)
 
-app = FastAPI(title="PrivateLens Provider Gateway", version="2.0.0")
+app = FastAPI(title="Perspicil Provider Gateway", version="2.0.0")
 
 
 def authorize(authorization: str = Header(default="")) -> None:

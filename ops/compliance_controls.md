@@ -1,16 +1,16 @@
 > SUPERSEDED reference: consult `cleanup_deployment.md` and `../dataroom-prep/` for current controls. Historical assumptions below may no longer apply.
 
-# PrivateLens Legal And Compliance Controls
+# Perspicil Legal And Compliance Controls
 
-PrivateLens is a research product, not a credit decisioning, lending, investment, legal, or underwriting authority.
+Perspicil is a research product, not a credit decisioning, lending, investment, legal, or underwriting authority.
 
 ## Required Product Controls
 
-- Every report must state that PrivateLens does not provide credit, investment, legal, or lending advice.
+- Every report must state that Perspicil does not provide credit, investment, legal, or lending advice.
 - Unavailable and public context inputs must remain visibly labelled and excluded from ratings.
 - Licensed-source responses must include provider, license reference, source metadata, observation time, entity-match evidence, and permitted use.
 - Numeric ratings stay disabled until the evidence, provider-diversity, entity, and documented model-approval gates pass.
-- Customers must not use PrivateLens as the sole basis for adverse action.
+- Customers must not use Perspicil as the sole basis for adverse action.
 - User access requires authentication.
 - Security-sensitive actions are written to `auth_audit_events`.
 

@@ -20,7 +20,7 @@ function loadingStages(name) {
   return [
     `Resolving ${label}…`,
     `Analyzing ${label}…`,
-    'Building PrivateScore…',
+    'Building Perspicil Score…',
   ]
 }
 
@@ -186,7 +186,7 @@ export default function CompanyReport() {
           </div>
         )}
       >
-        Research PrivateScore from available public and licensed signals. Not credit, investment, or lending advice.
+        Research Perspicil Score from available public and licensed signals. Not credit, investment, or lending advice.
       </PageHeader>
 
       {loading && (
@@ -243,7 +243,7 @@ export default function CompanyReport() {
               <div className="panel-head">
                 <div>
                   <div className="eyebrow">Insufficient public evidence</div>
-                  <h2>PrivateLens could not obtain enough reliable external evidence to calculate a meaningful PrivateScore™</h2>
+                  <h2>Perspicil could not obtain enough reliable external evidence to calculate a meaningful Perspicil Score</h2>
                 </div>
               </div>
               <div className="source-attempt-stats">

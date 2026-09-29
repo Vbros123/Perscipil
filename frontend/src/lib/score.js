@@ -1,5 +1,5 @@
 // Single source of truth for deciding whether a record carries a published
-// PrivateScore. The API returns scoring_status; older rows may only carry a
+// Perspicil Score. The API returns scoring_status; older rows may only carry a
 // rating string, so both are checked rather than guessing from the number.
 
 const UNRATED_RATINGS = new Set(['Preliminary', 'Validation hold', 'Unrated', 'Insufficient public evidence'])

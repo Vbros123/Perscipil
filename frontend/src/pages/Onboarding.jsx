@@ -1,4 +1,6 @@
-import { ArrowRight, ScanSearch } from 'lucide-react'
+import { BRAND } from '../lib/brand'
+import BrandMark from '../components/common/BrandMark'
+import { ArrowRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from '../router'
 
@@ -58,8 +60,8 @@ export default function Onboarding() {
   return (
     <main className="auth-page">
       <Link to="/dashboard" className="brand auth-brand">
-        <span className="brand-mark"><ScanSearch size={17} /></span>
-        <span><strong>PrivateLens</strong><small>Workspace setup</small></span>
+        <BrandMark />
+        <span><strong>{BRAND.name}</strong><small>Workspace setup</small></span>
       </Link>
       <section className="auth-card wide">
         <div className="eyebrow">Onboarding</div>

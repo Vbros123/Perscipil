@@ -155,3 +155,5 @@ websockets==17.1
     # via uvicorn
 yarl==1.25.1
     # via aiohttp
+
+socksio==1.0.0

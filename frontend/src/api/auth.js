@@ -19,7 +19,8 @@ export function logout() {
 }
 
 export function getMe() {
-  return apiRequest('/api/auth/me')
+  // A sleeping/unreachable API must not keep public auth pages loading forever.
+  return apiRequest('/api/auth/me', { signal: AbortSignal.timeout(15000) })
 }
 
 export function updateMe(payload) {

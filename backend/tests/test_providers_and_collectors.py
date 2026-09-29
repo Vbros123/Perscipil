@@ -156,7 +156,7 @@ def test_unrated_report_lists_failed_sources():
         "private_score": None,
         "rating": "Insufficient public evidence",
         "scoring_status": "unrated",
-        "summary": "PrivateLens could not obtain enough reliable external evidence.",
+        "summary": "Perspicil could not obtain enough reliable external evidence.",
         "breakdown": [],
         "category_summary": {},
         "dataSources": [

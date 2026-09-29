@@ -147,7 +147,7 @@ def _patch_client(monkeypatch, summaries, search_titles):
         async def __aexit__(self, *args):
             return False
 
-    monkeypatch.setattr("services.resolver.httpx.AsyncClient", _Factory)
+    monkeypatch.setattr("services.resolver.ProviderClient", _Factory)
 
     async def no_gleif(query, country_code=None):
         from services.providers.gleif import GleifLookup

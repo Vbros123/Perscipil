@@ -6,7 +6,7 @@ No dataset, model accuracy, customer count, or investment performance is invente
 
 Pilot protocol: freeze source/code/model version; recruit a consented analyst;
 pre-register a representative company list; record manual research time and
-PrivateLens-assisted review time using the same task definition. Record coverage,
+Perspicil-assisted review time using the same task definition. Record coverage,
 entity correctness, unresolved cases, escalations, usefulness (1–5), processing
 latency, and any later observed outcomes. Avoid selecting only easy recognizable
 companies. Report failures and missingness by geography, size and source coverage.
