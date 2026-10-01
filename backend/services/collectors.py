@@ -1,5 +1,5 @@
 """
-Perspicil Data Collectors v5
+Perscipil Data Collectors v5
 Public collectors return live, modelled, unavailable, or not_applicable results.
 Licensed score inputs are supplied by the evidence gateway and transformed locally.
 """
@@ -368,7 +368,7 @@ async def collect_sec_edgar(name: str, resolved=None) -> CollectorResult:
                     source_url,
                     display,
                     "No matching SEC registrant was found. That is not negative financial evidence "
-                    "and is excluded from Perspicil Score.",
+                    "and is excluded from PerpScore.",
                 )],
                 coverage="n/a",
                 entity_match="Private company" if company_type == "private" else "Not an SEC filer",
@@ -678,7 +678,7 @@ async def collect_news_sentiment(name: str, resolved=None) -> CollectorResult:
                 f"Keyword context across DuckDuckGo and HackerNews: {pos} positive indicator(s), "
                 f"{neg} negative indicator(s), and {hn_hits} Hacker News mention(s). "
                 "This is a low-quality supporting sentiment signal, not entity-resolved credit news, "
-                "and it cannot by itself produce a high Perspicil Score."
+                "and it cannot by itself produce a high PerpScore."
             ),
         )])
     except Exception as exc:
@@ -700,7 +700,7 @@ async def collect_job_postings(name: str, resolved=None) -> CollectorResult:
             "💼",
             "operational",
             source_url,
-            "Job posting data is an optional public signal. Perspicil does not scrape Indeed "
+            "Job posting data is an optional public signal. Perscipil does not scrape Indeed "
             "and does not treat missing hiring data as a system failure or as negative evidence.",
         )],
         error="OPTIONAL_UNAVAILABLE",
@@ -941,7 +941,7 @@ def _crash_result(source: str, error: BaseException) -> CollectorResult:
 
 
 async def collect_gleif(name: str, resolved=None) -> CollectorResult:
-    """GLEIF legal-entity identity. Context only — never a Perspicil Score input."""
+    """GLEIF legal-entity identity. Context only — never a PerpScore input."""
     source_url = "https://www.gleif.org"
     try:
         selected = None
@@ -970,7 +970,7 @@ async def collect_gleif(name: str, resolved=None) -> CollectorResult:
                 f"(entity status {status}"
                 f"{', jurisdiction ' + selected['jurisdiction'] if selected.get('jurisdiction') else ''}). "
                 "This is legal-entity identification, not a financial-health observation, "
-                "and is excluded from Perspicil Score."
+                "and is excluded from PerpScore."
             )
             return _result("gleif", [_public_signal(
                 name="Legal Entity Identity",
@@ -1113,7 +1113,7 @@ async def collect_census(name: str, resolved=None) -> CollectorResult:
         insight += (
             f". Employment change vs prior year: {growth}. "
             "This is national industry context for benchmarking only. It is not this company's "
-            "own employment, payroll, sales, or financials and is excluded from Perspicil Score."
+            "own employment, payroll, sales, or financials and is excluded from PerpScore."
         )
         return _result(
             "census",

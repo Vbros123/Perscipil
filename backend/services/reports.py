@@ -16,7 +16,7 @@ from services.resolver import ResolvedCompany, canonical_key, resolve_company
 from services.scorer import PUBLISHED_SCORE_STATUSES, compute_score
 
 logger = logging.getLogger("privatelens.reports")
-DISCLAIMER = "Perspicil is a research tool and does not provide credit, investment, legal, or lending advice."
+DISCLAIMER = "Perscipil is a research tool and does not provide credit, investment, legal, or lending advice."
 settings = get_settings()
 
 
@@ -346,7 +346,7 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
     elif scoring_status not in PUBLISHED_SCORE_STATUSES:
         headline = (
             f"{company_name}: insufficient public evidence. "
-            "Perspicil could not obtain enough reliable external evidence to calculate a meaningful Perspicil Score."
+            "Perscipil could not obtain enough reliable external evidence to calculate a meaningful PerpScore."
         )
         if scoring_status == "insufficient_data":
             headline = f"{company_name} is unrated because required evidence gates were not met."
@@ -391,11 +391,11 @@ def build_company_report(score_data: dict[str, Any]) -> dict[str, Any]:
         "recommended_next_steps": [
             "Confirm the legal entity using its registration number and registered address.",
             "Review live source records before material exposure.",
-            "Treat this Public Perspicil Score as research context, not a credit-bureau rating.",
+            "Treat this Public PerpScore as research context, not a credit-bureau rating.",
         ],
         "limitations": [
             "Missing and not-applicable sources are excluded from the score; they are never treated as positive or as zero.",
-            "GLEIF, Census industry context, and Wikipedia identity cannot manufacture a high Perspicil Score by themselves.",
+            "GLEIF, Census industry context, and Wikipedia identity cannot manufacture a high PerpScore by themselves.",
             "Census figures are national industry statistics, not this company's own employment or revenue.",
             "Absence of SEC filings, an LEI, or job postings is not negative financial evidence.",
             "Licensed credit, cash-flow, and legal evidence stay unavailable until a real gateway is configured.",

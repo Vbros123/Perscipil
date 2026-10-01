@@ -1,4 +1,4 @@
-"""Independent re-derivation of Perspicil scoring, written from the documented
+"""Independent re-derivation of Perscipil scoring, written from the documented
 model rather than from services.scorer, so the two can be cross-checked.
 
 Run: PYTHONPATH=. python tests/audit_independent_scoring.py

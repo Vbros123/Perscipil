@@ -1,4 +1,4 @@
-"""Fail-closed client for the Perspicil licensed evidence gateway."""
+"""Fail-closed client for the Perscipil licensed evidence gateway."""
 from __future__ import annotations
 
 import logging
@@ -40,7 +40,7 @@ async def fetch_evidence(identity: CompanyIdentity) -> GatewayEvidenceResponse |
     headers = {
         "Authorization": f"Bearer {settings.LICENSED_DATA_API_KEY}",
         "Content-Type": "application/json",
-        "User-Agent": "Perspicil/4.0 licensed-evidence-client",
+        "User-Agent": "Perscipil/4.0 licensed-evidence-client",
         "X-Request-ID": request_id,
     }
 

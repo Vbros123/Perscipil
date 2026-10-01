@@ -13,6 +13,7 @@ import Developer from './pages/Developer'
 import ForgotPassword from './pages/ForgotPassword'
 import History from './pages/History'
 import Landing from './pages/Landing'
+import Demo from './pages/Demo'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
 import Onboarding from './pages/Onboarding'
@@ -26,7 +27,7 @@ import Watchlist from './pages/Watchlist'
 function Protected({ children, shell = true }) {
   const { isAuthenticated, loading } = useAuth()
 
-  if (loading) return <div className="screen-loader">Loading Perspicil</div>
+  if (loading) return <div className="screen-loader">Loading Perscipil</div>
   if (!isAuthenticated) return <Redirect to="/login" />
   return shell ? <AppShell>{children}</AppShell> : children
 }
@@ -34,7 +35,7 @@ function Protected({ children, shell = true }) {
 function PublicOnly({ children }) {
   const { isAuthenticated, loading } = useAuth()
 
-  if (loading) return <div className="screen-loader">Loading Perspicil</div>
+  if (loading) return <div className="screen-loader">Loading Perscipil</div>
   if (isAuthenticated) return <Redirect to="/dashboard" />
   return children
 }
@@ -45,6 +46,7 @@ export default function App() {
       <Router>
         <Switch>
           <Route path="/" component={Landing} />
+          <Route path="/demo" component={Demo} />
           <Route path="/signup" component={Signup} />
           <Route path="/login"><PublicOnly><Login /></PublicOnly></Route>
           <Route path="/forgot-password"><PublicOnly><ForgotPassword /></PublicOnly></Route>

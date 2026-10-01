@@ -90,7 +90,7 @@ def test_multiple_fuzzy_matches_do_not_auto_select_a_subsidiary():
 
 
 def test_no_gleif_result_is_unavailable_not_negative():
-    lookup = select_gleif_match("Perspicil Research LLC", [], "US")
+    lookup = select_gleif_match("Perscipil Research LLC", [], "US")
     assert lookup.status == "unavailable"
     assert lookup.selected is None
 
@@ -116,10 +116,10 @@ def test_known_companies_match_expected_legal_names():
 
 def test_company_without_lei_does_not_change_resolution():
     resolved = ResolvedCompany(
-        query_name="Perspicil",
+        query_name="Perscipil",
         canonical_key="privatelens",
-        canonical_name="Perspicil",
-        legal_name="Perspicil",
+        canonical_name="Perscipil",
+        legal_name="Perscipil",
         resolution_status="unresolved",
         limited_identification=True,
     )

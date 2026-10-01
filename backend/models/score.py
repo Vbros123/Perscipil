@@ -1,4 +1,4 @@
-"""Pydantic models for Perspicil API responses."""
+"""Pydantic models for Perscipil API responses."""
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime

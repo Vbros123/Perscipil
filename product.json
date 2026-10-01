@@ -1,13 +1,13 @@
 {
   "brand": {
-    "name": "Perspicil",
-    "score": "Perspicil Score",
+    "name": "Perscipil",
+    "score": "PerpScore",
     "status": "Product brand; legal entity and trademark review require founder/counsel input",
-    "short_name": "Perspicil",
-    "support_name": "Perspicil Support",
-    "email_sender_name": "Perspicil Security",
-    "api_title": "Perspicil API",
-    "title": "Perspicil | Private Company Intelligence",
+    "short_name": "Perscipil",
+    "support_name": "Perscipil Support",
+    "email_sender_name": "Perscipil Security",
+    "api_title": "Perscipil API",
+    "title": "Perscipil | Private Company Intelligence",
     "description": "Private company financial health research with evidence-weighted scoring, watchlists, reports, and peer comparison.",
     "legal_entity": null
   },

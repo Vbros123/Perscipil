@@ -42,7 +42,7 @@ export async function apiRequest(path, options = {}) {
   const payload = contentType.includes('application/json') ? await response.json() : await response.text()
 
   if (!response.ok) {
-    const message = typeof payload === 'string' ? payload : payload?.detail || 'Perspicil API request failed.'
+    const message = typeof payload === 'string' ? payload : payload?.detail || 'Perscipil API request failed.'
     if (response.status === 401) {
       setToken(null)
       window.dispatchEvent(new CustomEvent('privatelens:session-expired'))

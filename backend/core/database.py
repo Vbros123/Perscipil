@@ -1,4 +1,4 @@
-"""Database session management for Perspicil."""
+"""Database session management for Perscipil."""
 from collections.abc import Generator
 
 from sqlalchemy import create_engine

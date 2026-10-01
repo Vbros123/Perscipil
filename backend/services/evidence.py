@@ -461,7 +461,7 @@ def _credit_signal(bundle: EvidenceBundle, now: datetime) -> dict[str, Any] | No
         bundle,
         [item],
         f"Commercial credit index {score:.0f}/100",
-        "Normalized from the provider credit scale; Perspicil applies no name-based or generated adjustment.",
+        "Normalized from the provider credit scale; Perscipil applies no name-based or generated adjustment.",
         now,
     )
 
@@ -590,7 +590,7 @@ def _cash_flow_signal(bundle: EvidenceBundle, now: datetime) -> dict[str, Any] |
         bundle,
         list(observations.values()),
         f"{len(component_scores)} consented financial metrics",
-        "Computed from company-authorized accounting or banking aggregates; transaction-level data is not stored by Perspicil.",
+        "Computed from company-authorized accounting or banking aggregates; transaction-level data is not stored by Perscipil.",
         now,
     )
 

@@ -31,7 +31,7 @@ export default function Compare() {
   return (
     <div className="page-stack">
       <PageHeader eyebrow="Peer analysis" title="Compare companies">
-        Compare two to four private companies using the same Perspicil Score model.
+        Compare two to four private companies using the same PerpScore model.
       </PageHeader>
       <form className="panel compare-form" onSubmit={submit}>
         <label>Companies<input value={input} onChange={(event) => setInput(event.target.value)} /></label>

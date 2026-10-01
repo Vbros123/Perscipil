@@ -1,4 +1,4 @@
-"""Central configuration for Perspicil API."""
+"""Central configuration for Perscipil API."""
 from functools import lru_cache
 import re
 from typing import Literal

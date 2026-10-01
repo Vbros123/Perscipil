@@ -1,6 +1,6 @@
 """allow a null score for unrated companies
 
-An unrated company has no PrivateScore. Previously the scorer emitted a neutral
+An unrated company has no PerpScore. Previously the scorer emitted a neutral
 500 placeholder that was written into NOT NULL columns, leaving rows that any
 later query or export would read as a real mid-range score.
 

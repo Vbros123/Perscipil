@@ -77,9 +77,9 @@ def test_full_authenticated_workspace_flow(api, monkeypatch):
     updated = api.patch(
         "/api/users/me",
         headers=headers,
-        json={"company": "Perspicil", "role": "Analyst"},
+        json={"company": "Perscipil", "role": "Analyst"},
     )
-    assert updated.json()["company"] == "Perspicil"
+    assert updated.json()["company"] == "Perscipil"
 
     settings = api.get("/api/settings", headers=headers)
     assert settings.status_code == 200

@@ -1,6 +1,6 @@
-"""Perspicil scoring engine v6: evidence-weighted Perspicil Score.
+"""Perscipil scoring engine v6: evidence-weighted PerpScore.
 
-Perspicil Score measures the polarity of *available* evidence. It is not a count
+PerpScore measures the polarity of *available* evidence. It is not a count
 of internet mentions. Missing inputs stay missing: they do not become 100, 50,
 or any other invented strength.
 
@@ -71,7 +71,7 @@ QUALITY_MULTIPLIER = {
 # quality mix and public-only haircuts.
 CEILING_FLOOR = 0.32
 CEILING_EXP = 1.05
-# Internet-only reports cannot claim a perfect Perspicil Score. Licensed verified
+# Internet-only reports cannot claim a perfect PerpScore. Licensed verified
 # evidence is required to unlock the top of the scale.
 PUBLIC_ONLY_MAX = 820
 # 1000 requires broad, mostly high-quality coverage — not one strong keyword hit.
@@ -223,7 +223,7 @@ def _category_explanation(category: str, used: list[dict[str, Any]], missing: li
         if category == "industry":
             return (
                 "Industry context is shown for benchmarking only. It is not this company's own "
-                "employment, payroll, or revenue and does not change Perspicil Score."
+                "employment, payroll, or revenue and does not change PerpScore."
             )
         return "No operational evidence was scored for this category."
     if category == "digital":
@@ -233,7 +233,7 @@ def _category_explanation(category: str, used: list[dict[str, Any]], missing: li
         )
     if category == "identity":
         return (
-            f"Identity evidence ({names}) is a supporting public signal and cannot dominate Perspicil Score. "
+            f"Identity evidence ({names}) is a supporting public signal and cannot dominate PerpScore. "
             f"Evidence quality: {quality}."
         )
     if category == "sentiment":
@@ -247,7 +247,7 @@ def _category_explanation(category: str, used: list[dict[str, Any]], missing: li
     if category == "industry":
         return (
             f"Industry context ({names}) is national NAICS-level Census data, not company financials. "
-            "It is excluded from Perspicil Score."
+            "It is excluded from PerpScore."
         )
     if category == "financial":
         extra = f" Unscored financial inputs: {', '.join(missing)}." if missing else ""
@@ -548,7 +548,7 @@ def compute_score(
         scoring_status = "unrated"
         rating = "Insufficient public evidence"
         color = PRELIMINARY_COLOR
-        summary = "Perspicil could not obtain enough reliable external evidence to calculate a meaningful Perspicil Score for this company."
+        summary = "Perscipil could not obtain enough reliable external evidence to calculate a meaningful PerpScore for this company."
         private_score = UNRATED_SCORE
         evidence_confidence = 0.0
         model_version = "public-v2"

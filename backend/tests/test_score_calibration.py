@@ -1,4 +1,4 @@
-"""Calibration: missing and weak internet signals must not inflate Perspicil Score."""
+"""Calibration: missing and weak internet signals must not inflate PerpScore."""
 from services.scorer import compute_score
 
 

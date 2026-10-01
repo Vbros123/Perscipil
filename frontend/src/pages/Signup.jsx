@@ -52,7 +52,7 @@ export default function Signup() {
       </Link>
       <section className="auth-card wide">
         <div className="eyebrow">Create workspace</div>
-        <h1>Start using Perspicil</h1>
+        <h1>Start using Perscipil</h1>
         <ErrorNotice message={error} />
         <form onSubmit={submit} className="form-stack">
           <div className="form-grid">

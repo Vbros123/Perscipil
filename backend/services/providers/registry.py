@@ -78,7 +78,7 @@ class ProviderRegistry:
             "note": (
                 "Licensed credit, cash-flow, and legal evidence stay unavailable until "
                 "LICENSED_DATA_GATEWAY_URL and LICENSED_DATA_API_KEY point at a real gateway. "
-                "Perspicil does not fabricate those records."
+                "Perscipil does not fabricate those records."
             ),
         }
 

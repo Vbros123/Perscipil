@@ -80,7 +80,7 @@ async def compare(
         winner_name = winner["company_name"]
         winner_score = winner["private_score"]
         analysis = (
-            f"{winner_name} leads this peer set with a Perspicil Score of "
+            f"{winner_name} leads this peer set with a PerpScore of "
             f"{winner_score}/1000 ({winner['rating']}). Gap vs lowest: "
             f"{winner_score - low} points."
         )
@@ -106,5 +106,5 @@ async def compare(
         "winner": winner_name,
         "winner_score": winner_score,
         "analysis": analysis,
-        "disclaimer": "Perspicil is a research tool and does not provide credit, investment, legal, or lending advice.",
+        "disclaimer": "Perscipil is a research tool and does not provide credit, investment, legal, or lending advice.",
     }

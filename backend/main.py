@@ -1,5 +1,5 @@
 """
-Perspicil API v4
+Perscipil API v4
 Private company financial health research platform.
 """
 from contextlib import asynccontextmanager
