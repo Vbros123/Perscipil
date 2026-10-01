@@ -1,7 +1,7 @@
-# PrivateLens
+# Perscipil
 
-Private-company research MVP with account-owned pilot workflows. PrivateLens and
-PrivateScore are temporary names pending brand review. The score is an
+Private-company research MVP with account-owned pilot workflows. Perscipil and
+PerpScore are temporary names pending brand review. The score is an
 **evidence-weighted research score**, not a credit rating, lending decision,
 default probability, or validated bankruptcy prediction.
 
