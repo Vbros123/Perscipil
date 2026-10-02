@@ -1,6 +1,6 @@
-# Perspicil
+# Perscipil
 
-Private-company research MVP with account-owned pilot workflows. Perspicil is the product brand; the legal entity and trademark clearance remain
+Private-company research MVP with account-owned pilot workflows. Perscipil is the product brand; the legal entity and trademark clearance remain
 subject to founder/counsel review. The score is an
 **evidence-weighted research score**, not a credit rating, lending decision,
 default probability, or validated bankruptcy prediction.

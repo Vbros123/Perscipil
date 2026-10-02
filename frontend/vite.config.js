@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { readFileSync } from 'node:fs'
 
 const { brand } = JSON.parse(readFileSync(new URL('../product.json', import.meta.url), 'utf8'))
-const imageUrl = `https://${process.env.VERCEL_URL || 'privatelens.vercel.app'}/brand/perspicil-social.svg`
+const imageUrl = `https://${process.env.VERCEL_URL || 'privatelens.vercel.app'}/brand/perspicil-social.png`
 const manifest = JSON.stringify({
   name: brand.name, short_name: brand.short_name, description: brand.description,
   start_url: '/', display: 'standalone', background_color: '#0b1017', theme_color: '#0b1017',
