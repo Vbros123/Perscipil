@@ -157,3 +157,6 @@ yarl==1.25.1
     # via aiohttp
 
 socksio==1.0.0
+
+pypdf==6.19.0
+defusedxml==0.7.1

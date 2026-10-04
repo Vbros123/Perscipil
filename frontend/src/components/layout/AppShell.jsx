@@ -7,6 +7,7 @@ import {
   Code2,
   CreditCard,
   History,
+  FileSearch,
   LayoutDashboard,
   LogOut,
   Settings,
@@ -22,6 +23,7 @@ const sections = [
     label: 'Research',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/deck-review', label: 'Deck diligence', icon: FileSearch },
       { to: '/batches', label: 'Bulk screening', icon: BarChart3 },
       { to: '/compare', label: 'Compare', icon: BarChart3 },
       { to: '/watchlist', label: 'Watchlist', icon: BookmarkCheck },

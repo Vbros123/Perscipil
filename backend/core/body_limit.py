@@ -7,12 +7,13 @@ class BodyLimitMiddleware:
     async def __call__(self, scope, receive, send):
         if scope['type']!='http' or scope['method'] in {'GET','HEAD','OPTIONS'}:
             return await self.app(scope,receive,send)
+        limit = 9 * 1024 * 1024 if scope.get('path') == '/api/decks/review' else self.max_bytes
         chunks=[];size=0
         while True:
             message=await receive()
             if message['type']=='http.disconnect':return
             size+=len(message.get('body',b''))
-            if size>self.max_bytes:
+            if size>limit:
                 return await JSONResponse({'detail':'Request body too large'},status_code=413)(scope,receive,send)
             chunks.append(message)
             if not message.get('more_body'):break
