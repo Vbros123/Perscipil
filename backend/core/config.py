@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "4.0.0"
     ENVIRONMENT: Literal["development", "test", "staging", "production"] = "development"
     DEBUG: bool = False
+    EMBEDDED_WORKER_ENABLED: bool = False
     POLICY_REACCEPTANCE_REQUIRED: bool = False
     TERMS_TEXT: str = ""
     PRIVACY_TEXT: str = ""

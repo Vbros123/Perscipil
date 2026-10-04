@@ -1,6 +1,6 @@
 # Final AI cleanup report
 
-Updated 2026-10-04 UTC. Current product brand: **Perscipil**, with **PerpScore** as the display label. Historical rebrand reports record earlier spellings. Engineering work is on `final-pre-fundraising-cleanup`, draft PR #10. Production promotion remains gated on backend staging activation and authenticated browser verification. A frontend preview is not a full-stack staging deployment.
+Updated 2026-10-04 UTC. Current product brand: **Perscipil**, with **PerpScore** as the display label. Historical rebrand reports record earlier spellings. PR #10 is merged into main. The redesigned production frontend is live at https://perscipil.vercel.app/ and the production API readiness check passes. Operational verification remains incomplete; public availability does not certify the authenticated workflows. A frontend preview is not a full-stack staging deployment.
 
 ## 1. Executive Summary
 
@@ -8,7 +8,7 @@ Fixed the red SQLite migration and the Postgres quota-key overflow. Implemented 
 
 ## 2. Baseline and Git
 
-Production baseline remains `3ed1df1d58e821c246a91b04982f5511ce22d250`. Changes are additive on the dedicated branch; production has not been promoted. Local imported history is synchronized through identical Git trees without rewriting remote history. PR: https://github.com/Vbros123/Perscipil/pull/10.
+The redesign/security cleanup was merged as `c468ac0465cecb1d1b7e3e3035d2e298ab883bca` through PR #10 after all five CI jobs passed. PR #22 adds opt-in background processing on existing free web compute; staging verification precedes production worker activation. Remote history has not been rewritten.
 
 ## 3. Organizations / RBAC
 
@@ -40,11 +40,11 @@ The deployed preview homepage and login/MFA form were inspected in the browser. 
 
 ## 10. Deployment
 
-The Vercel project is now named `perscipil`. Cleanup commit `031925cecd77dfac598a9abb2585f93380b6a4ce` built successfully after setting a branch-specific Preview `VITE_API_URL` to the isolated Render staging API. Render frontend/public URL and exact CORS origin were updated to match the new preview alias. The frontend CSP permits the staging API. Production has not been promoted.
+The Vercel project is now named `perscipil`. Cleanup commit `031925cecd77dfac598a9abb2585f93380b6a4ce` built successfully after setting a branch-specific Preview `VITE_API_URL` to the isolated Render staging API. Render frontend/public URL and exact CORS origin were updated to match the new preview alias. The frontend CSP permits the staging API. Production frontend promotion is complete. The branded alias https://perscipil.vercel.app/ is verified and serves the redesign. Production Render startup was repaired by selecting the shared database rate limiter and a supported Python runtime; readiness returned HTTP 200 on 2026-10-04. Production public URL and CORS origins now include the branded alias.
 
-The isolated API runs against hosted PostgreSQL; migration upgrade and schema-diff checks pass. Secure runtime keys are configured, and Render readiness probes have returned HTTP 200. Email credentials are configured, but the sender and actual delivery are not verified. The worker, offsite backup destination, and real hosted restore remain outstanding. Direct connector SQL is unavailable because the database deliberately blocks external connections; its allowlist has not been weakened.
+The isolated API runs against hosted PostgreSQL; migration upgrade and schema-diff checks pass. Secure runtime keys are configured, and Render readiness probes have returned HTTP 200. Email credentials are configured, but the sender and actual delivery are not verified. The embedded worker is active in staging: commit `24d1bddd048ffcb698d98e95fe63062f1ce94c9a` logged successful retention and repeated worker cycles on 2026-10-04 at 15:47 UTC. The empty queue was healthy; real authenticated jobs and outbound delivery remain unverified. The offsite backup destination and real hosted restore remain outstanding. Direct connector SQL is unavailable because the database deliberately blocks external connections; its allowlist has not been weakened.
 
-Vercel preview protection remains enabled. Automatic approval review rejected creating a temporary bearer-style preview access link; explicit approval is needed for that access method before browser verification can continue.
+Vercel preview protection remains enabled. The owner explicitly approved temporary preview access, which was created and used successfully. Authenticated application workflows still require a staging account; preview access alone does not sign into Perscipil.
 
 ## 11. Backups / restore
 
@@ -52,7 +52,7 @@ CI run 36206441543 at cleanup SHA `f721a586bee1754508aef700bfae5c1dbbc08c31` pas
 
 ## 12. Database / operations
 
-Portable SQLite migrations through `ad421f560371` and schema diff check pass. PostgreSQL tests cover simultaneous enqueue/idempotency, single active claims, stale completion fencing, exact quotas, concurrent recovery use, 1,000 completed jobs and pool-exhaustion recovery. Postgres pool is bounded at 5 + 5 overflow with a five-second checkout timeout. `/api/health` is liveness; `/api/ready` checks database connectivity and returns 503 on database failure. Protected aggregate queue/delivery metrics supplement structured worker/provider logs. Daily retention uses a shared database lease. Runtime alert destinations and worker supervision are not activated without hosting access.
+Portable SQLite migrations through `ad421f560371` and schema diff check pass. PostgreSQL tests cover simultaneous enqueue/idempotency, single active claims, stale completion fencing, exact quotas, concurrent recovery use, 1,000 completed jobs and pool-exhaustion recovery. Postgres pool is bounded at 5 + 5 overflow with a five-second checkout timeout. `/api/health` is liveness; `/api/ready` checks database connectivity and returns 503 on database failure. Protected aggregate queue/delivery metrics supplement structured worker/provider logs. Daily retention uses a shared database lease. Runtime alert destinations remain unverified. Opt-in subprocess worker supervision is implemented on existing free compute and enabled in staging; production activation is a separate gate.
 
 ## 13. Security scans
 
@@ -68,6 +68,8 @@ The current deliverable is `Perscipil_Investor_Deck.pptx`: twelve editable slide
 
 ## 16. Verification evidence
 
+- Worker fix `24d1bddd048ffcb698d98e95fe63062f1ce94c9a`: PR CI run 37214219135 passed all five jobs, including PostgreSQL and encrypted restore. Local focused worker/config/delivery regressions: 15 passed. Hosted staging retention and worker cycles succeeded; readiness remained HTTP 200.
+
 - Current cleanup commit `031925cecd77dfac598a9abb2585f93380b6a4ce`: CI run 37174459116 passed all five jobs (frontend, backend, PostgreSQL, provider gateway, secret history). This is the same code tree as `d8f879b3e20e05c02a42da35009533451001cac7`, rebuilt with the new staging configuration.
 - Hosted Render migration/schema check passed on 2026-10-04 UTC. Hosted restore and authenticated browser journeys are still separate, incomplete gates.
 
@@ -81,10 +83,11 @@ Historical evidence:
 
 ## 17. Remaining technical release gates
 
-1. Finish the staging worker and verify real email/delivery destinations. The isolated API, runtime keys, exact CORS/CSP configuration, migration startup and readiness checks are configured. Worker activation needs a paid compute decision; see `ops/STAGING_WORKER_PLAN.md`.
+1. Finish the staging worker and verify real email/delivery destinations. The isolated API, runtime keys, exact CORS/CSP configuration, migration startup and readiness checks are configured. The owner requires $0 hosting. An opt-in embedded worker uses existing web-service compute and respects free-service sleep; no paid worker is needed. See `ops/STAGING_WORKER_PLAN.md`. Production worker activation awaits hosted queue/delivery and retention checks.
 2. Execute the deployed authenticated browser journeys, responsive/accessibility checks, staging migrations, worker/delivery verification, and an encrypted restore using the actual hosting/backup destination. CI proves code behavior, not this operational deployment.
 3. Activate offsite encrypted backups, separate current deletion-ledger storage/freshness monitoring, retention and alerting. Verify ownership/control-history reconciliation after restoring older backups; do not reopen a restore with unresolved ownership state.
-4. Review and remediate findings from those environment-specific checks before production promotion.
+4. Review and remediate findings before declaring authenticated workflows operational. The public production frontend is already live.
+5. Migrate staging PostgreSQL to a durable free database before the current Render free database expires on 2026-10-27 UTC; verify migration and restore before switching connections.
 
 These remain technical work blocked on infrastructure access, not contractual/customer work. Do not label this release “human-only remaining” until these gates are completed.
 
@@ -94,4 +97,4 @@ Founder/counsel: approved policy text and retention periods, trademark/name clea
 
 ## 19. Readiness
 
-Implemented and inspectable research MVP; public frontend preview available. Institutional staging verification remains gated on authenticated browser access, worker activation, verified delivery and an actual offsite backup/restore drill. No production promotion or enterprise readiness certification. Updated capability metadata and deployment/API documentation describe implemented versus activated behavior explicitly.
+Implemented and inspectable research MVP; branded public production frontend available. Institutional staging verification remains gated on authenticated browser access, worker activation, verified delivery and an actual offsite backup/restore drill. Production frontend deployment is complete; there is no enterprise readiness certification. Updated capability metadata and deployment/API documentation describe implemented versus activated behavior explicitly.
