@@ -101,7 +101,7 @@ pydantic-settings==2.15.0
     # via -r requirements.in
 pygments==2.21.0
     # via pytest
-pyjwt==2.15.0
+pyjwt==2.15.1
     # via
     #   -r requirements.in
     #   pyjwt
@@ -115,6 +115,8 @@ python-dotenv==1.2.3
 pyyaml==6.0.3
     # via uvicorn
 sentry-sdk==2.70.0
+    # via -r requirements.in
+socksio==1.0.0
     # via -r requirements.in
 soupsieve==2.9.2
     # via beautifulsoup4
@@ -155,5 +157,3 @@ websockets==17.1
     # via uvicorn
 yarl==1.25.1
     # via aiohttp
-
-socksio==1.0.0
