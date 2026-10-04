@@ -1,4 +1,6 @@
-import { CheckCircle2, ScanSearch } from 'lucide-react'
+import { BRAND } from '../lib/brand'
+import BrandMark from '../components/common/BrandMark'
+import { CheckCircle2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from '../router'
 
@@ -36,8 +38,8 @@ export default function VerifyEmail() {
   return (
     <main className="auth-page">
       <Link to="/" className="brand auth-brand">
-        <span className="brand-mark"><ScanSearch size={17} /></span>
-        <span><strong>PrivateLens</strong><small>Email verification</small></span>
+        <BrandMark />
+        <span><strong>{BRAND.name}</strong><small>Email verification</small></span>
       </Link>
       <section className="auth-card">
         <div className="eyebrow">Account security</div>

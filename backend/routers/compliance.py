@@ -30,5 +30,5 @@ def compliance_status():
             "approved_by": settings.MODEL_APPROVED_BY,
             "ratings_enabled": settings.MODEL_RELEASE_STAGE == "validated",
         },
-        "legal_notice": "PrivateLens is a research tool and does not provide credit, investment, legal, or lending advice.",
+        "legal_notice": "Perscipil is a research tool and does not provide credit, investment, legal, or lending advice.",
     }

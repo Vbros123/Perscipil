@@ -101,7 +101,7 @@ pydantic-settings==2.15.0
     # via -r requirements.in
 pygments==2.21.0
     # via pytest
-pyjwt==2.14.0
+pyjwt==2.15.0
     # via
     #   -r requirements.in
     #   pyjwt
@@ -155,3 +155,5 @@ websockets==17.1
     # via uvicorn
 yarl==1.25.1
     # via aiohttp
+
+socksio==1.0.0

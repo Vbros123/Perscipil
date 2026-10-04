@@ -114,7 +114,16 @@ def get_current_user(
             detail="Authentication required.",
         )
     payload = _decode_payload(credentials.credentials)
-    return _user_from_payload(payload, db)
+    user = _user_from_payload(payload, db)
+    # Require only configured, published policy updates; never block recovery/account controls.
+    allowed_prefixes = ('/api/auth/', '/api/policies/', '/api/users/me', '/api/settings')
+    if settings.POLICIES_PUBLISHED and settings.POLICY_REACCEPTANCE_REQUIRED and not request.url.path.startswith(allowed_prefixes):
+        from sqlalchemy import select
+        from models.workflows import PolicyAcceptance
+        accepted = db.scalar(select(PolicyAcceptance.id).where(PolicyAcceptance.user_id==user.id,PolicyAcceptance.terms_version==settings.TERMS_VERSION,PolicyAcceptance.privacy_version==settings.PRIVACY_VERSION))
+        if accepted is None:
+            raise HTTPException(428, 'Review and accept the current policies before continuing research.')
+    return user
 
 
 def get_optional_user(

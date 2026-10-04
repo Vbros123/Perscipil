@@ -1,13 +1,15 @@
 # Perscipil
 
-Private-company research MVP with account-owned pilot workflows. Perscipil and
-PerpScore are temporary names pending brand review. The score is an
+Private-company research MVP with account-owned pilot workflows. Perscipil is the
+product brand and PerpScore is its research score. Legal entity and trademark
+clearance remain subject to founder/counsel review. The score is an
 **evidence-weighted research score**, not a credit rating, lending decision,
 default probability, or validated bankruptcy prediction.
 
 Current status is defined in `product.json`, rendered by Pricing and exposed at
 `GET /api/capabilities`. LIVE means implemented in this repository, not proof of
-current deployment. No live infrastructure credentials were supplied for cleanup.
+current deployment. The Render connector is available; staging runtime secrets and verified email delivery
+still require owner configuration. See `ops/STAGING_RENDER_SETUP.md`.
 
 ## Architecture
 
@@ -64,21 +66,23 @@ Python 3.12; they are not artifact-hash-verified supply-chain attestations.
 
 ## Pilot workflows
 
-- Bulk screening: `/batches`, 100 CSV rows, 256 KiB, optional entity identifiers;
-  duplicates removed, sequential steps, resumable stored progress, three attempts,
-  review-required ambiguous matches, protected CSV exports. Keep page open while running.
-- Customer API: `/developer`, hashed account-owned keys, score:read only,
-  1,000-call lifetime pilot quota, revoke and rotate. `POST /api/v1/score` takes
-  `X-API-Key`. Licensed redistribution disabled. No multi-user organizations.
-- Corrections: `/research-review`, select owned report and submit issue. Trusted
-  operator uses `backend/scripts/review_correction.py`; never automatic acceptance.
-- Monitoring: saved subscriptions and in-app events; schedule
-  `PYTHONPATH=. python scripts/run_monitoring.py` hourly from backend. Weekly per
-  subscription, five-minute recovery lease. Deployment scheduler is not activated.
-- Account export/deletion: `/account`. Reauthentication and typed confirmation;
-  owned data removed, sessions/API keys invalidated, de-identified control history retained.
-- Pilot metrics: `/api/pilot/reviews` and `/api/pilot/metrics`; self-reported paired
-  analyst estimates, never fabricated ROI.
+- Organizations: isolated owner/admin/member workspaces, verified-email invitations,
+  revocation, role controls, password-confirmed ownership transfer and MFA policy.
+- Bulk screening: durable jobs, 1,000 rows / 512 KiB, deduplication, idempotency,
+  bounded retries/cancellation and protected formula-safe CSV exports. A supervised
+  worker processes jobs independently of the browser.
+- Customer API: versioned `/api/v1/workspace` routes, scoped/revocable hashed keys,
+  tenant isolation, 10,000-new-request pilot lifetime quota and shared 120/minute limit.
+  Older account-level `/api/v1/score` remains compatible. See `docs/CUSTOMER_API.md`.
+- Corrections: report-scoped submissions, administrator review and immutable
+  decision history; accepting a correction never changes historical evidence.
+- Monitoring: weekly durable screenings with leases, retries, in-app events and
+  operator-configured email/webhooks. Run `PYTHONPATH=. python scripts/run_worker.py`
+  from `backend`; the worker also coordinates daily retention.
+- Account export/deletion: reauthentication and typed confirmation, session/API-key
+  invalidation and de-identified control history. Encrypted deletion-ledger replay
+  is required after restoring older backups.
+- Pilot metrics: self-reported paired analyst estimates, never fabricated ROI.
 
 ## Production deployment
 
@@ -94,6 +98,6 @@ disabled pending per-account consent/cache isolation. No paid services were crea
 
 ## Diligence
 
-Start with `PRE_FUNDRAISING_CLEANUP_REPORT.md` and `dataroom-prep/INDEX.md`.
+Start with `FINAL_AI_CLEANUP_REPORT.md` and `PERSPICIL_REBRAND_REPORT.md` and `dataroom-prep/INDEX.md`.
 Historical documents are preserved under `docs/historical/`; they are not current
 validation evidence. Policy drafts require counsel review before publication.

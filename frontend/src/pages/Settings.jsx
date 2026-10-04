@@ -46,7 +46,7 @@ export default function Settings() {
   return (
     <div className="page-stack narrow">
       <PageHeader eyebrow="Workspace" title="Settings">
-        Configure the operating defaults for your PrivateLens research desk.
+        Configure the operating defaults for your Perscipil research desk.
       </PageHeader>
       <ErrorNotice message={error} />
       {message && <div className="notice notice-success">{message}</div>}

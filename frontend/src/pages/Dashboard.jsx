@@ -59,11 +59,11 @@ export default function Dashboard() {
       history.map((item) => (item.normalized_name || item.company_name || '').toLowerCase()),
     ).size
     return [
-      { icon: Building2, label: 'Companies screened', value: uniqueCompanies, detail: 'Unique names in history' },
+      { icon: Building2, label: 'Companies screened', value: uniqueCompanies, detail: 'Unique names in 8 recent records' },
       { icon: BookmarkCheck, label: 'Saved companies', value: watchlist.length, detail: 'Active watchlist' },
       {
         icon: LineChart,
-        label: 'Average score',
+        label: 'Average PerpScore',
         value: average === null ? '—' : average,
         detail: average === null ? 'No rated companies yet' : `Across ${ratedCount} rated ${ratedCount === 1 ? 'company' : 'companies'}`,
       },
@@ -74,7 +74,7 @@ export default function Dashboard() {
 
   return (
     <div className="page-stack">
-      <PageHeader eyebrow="Overview" title="Research workspace">
+      <PageHeader eyebrow="Overview" title="Company intelligence">
         Screen a company, review recent diligence, and monitor names you have saved.
       </PageHeader>
       <SearchPanel onSearch={openReport} />

@@ -2,7 +2,7 @@ DRAFT FOR COUNSEL REVIEW — NOT PUBLISHED
 
 # Terms of Service — draft 2026-09-20
 Provider: [LEGAL ENTITY TO BE CONFIRMED]. Contact: [VERIFIED CONTACT].
-PrivateLens supplies research tools to authorized account holders. Scores reflect
+Perspicil supplies research tools to authorized account holders. Scores reflect
 available evidence and may be incomplete, stale or wrongly matched. Verify primary
 sources before material decisions. The service does not provide credit ratings,
 lending decisions, investment recommendations, legal advice or default probabilities.

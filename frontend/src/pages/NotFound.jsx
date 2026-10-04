@@ -6,7 +6,7 @@ export default function NotFound() {
     <main className="not-found">
       <ScanSearch size={34} />
       <h1>Page not found</h1>
-      <p>This route is not part of the PrivateLens workspace.</p>
+      <p>This route is not part of the Perscipil workspace.</p>
       <Link className="btn btn-primary" to="/dashboard">Back to dashboard</Link>
     </main>
   )

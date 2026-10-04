@@ -1,7 +1,9 @@
-"""Central configuration for PrivateLens API."""
+"""Central configuration for Perscipil API."""
 from functools import lru_cache
 import re
 from typing import Literal
+
+from core.brand import BRAND, NAME
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -10,10 +12,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
-    APP_NAME: str = "PrivateLens API"
+    APP_NAME: str = BRAND["api_title"]
     APP_VERSION: str = "4.0.0"
     ENVIRONMENT: Literal["development", "test", "staging", "production"] = "development"
     DEBUG: bool = False
+    POLICY_REACCEPTANCE_REQUIRED: bool = False
+    TERMS_TEXT: str = ""
+    PRIVACY_TEXT: str = ""
     POLICIES_PUBLISHED: bool = False
     TERMS_VERSION: str = "2026-09-20-draft"
     PRIVACY_VERSION: str = "2026-09-20-draft"
@@ -23,6 +28,8 @@ class Settings(BaseSettings):
     AUTO_CREATE_TABLES: bool = True
 
     # Auth
+    CONSENT_ENCRYPTION_KEY: str = ""
+    MFA_ENCRYPTION_KEY: str | None = None
     JWT_SECRET: str = "change-this-in-production"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRES_MINUTES: int = 60
@@ -30,7 +37,7 @@ class Settings(BaseSettings):
     SESSION_COOKIE_NAME: str = "privatelens_session"
     SECURITY_CONTACT: str | None = None
     SECURITY_EXPIRES: str | None = None
-    PUBLIC_DATA_USER_AGENT: str = "PrivateLens/4.0"
+    PUBLIC_DATA_USER_AGENT: str = f"{NAME}/4.0"
     RATE_LIMIT_BACKEND: Literal["memory", "database"] = "memory"
     JWT_ISSUER: str = "privatelens-api"
     JWT_AUDIENCE: str = "privatelens-dashboard"
@@ -47,11 +54,13 @@ class Settings(BaseSettings):
     SMTP_USERNAME: str | None = None
     SMTP_PASSWORD: str | None = None
     SMTP_FROM_EMAIL: str = ""
-    SMTP_FROM_NAME: str = "PrivateLens Security"
+    SMTP_FROM_NAME: str = BRAND["email_sender_name"]
     SMTP_USE_TLS: bool = True
     RESEND_API_KEY: str | None = None
     RESEND_API_URL: str = "https://api.resend.com/emails"
     APP_PUBLIC_URL: str = "http://localhost:5173"
+
+    NOTIFICATION_DESTINATIONS_JSON: str = "{}"
 
     # Observability
     LOG_LEVEL: str = "INFO"
@@ -62,6 +71,7 @@ class Settings(BaseSettings):
     # Public mode uses the built-in open-data collectors. Licensed mode adds
     # paid-provider overrides through the vendor-normalization gateway.
     PROVIDER_PERMISSIONS_JSON: str = "{}"
+    RETENTION_PERIODS_JSON: str = "{}"
     REPORT_RETENTION_DAYS: int = 30
     DATA_MODE: Literal["public", "licensed", "hybrid"] = "public"
     LICENSED_DATA_GATEWAY_URL: str | None = None
@@ -82,6 +92,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 30
 
     # Data collector timeouts
+    PROVIDER_BUDGETS_ENABLED: bool = True
     HTTP_TIMEOUT: float = 8.0
 
     # Optional free Census Bureau key. Industry context only; never company financials.
@@ -139,6 +150,8 @@ class Settings(BaseSettings):
         return value
 
     def validate_runtime(self) -> None:
+        if self.POLICIES_PUBLISHED and (not self.TERMS_TEXT.strip() or not self.PRIVACY_TEXT.strip()):
+            raise RuntimeError("Published policies require their complete approved text.")
         if not self.is_production:
             return
         if self.DEBUG or self.AUTH_TOKEN_RETURN_IN_RESPONSE:

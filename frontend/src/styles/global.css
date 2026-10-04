@@ -1,5 +1,5 @@
 /* ------------------------------------------------------------------ */
-/* PrivateLens design tokens - light editorial fintech system          */
+/* Perscipil design tokens - light editorial fintech system          */
 /* ------------------------------------------------------------------ */
 
 *, *::before, *::after {
@@ -78,7 +78,6 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-body,
 button,
 input,
 select,

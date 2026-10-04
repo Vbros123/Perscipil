@@ -17,4 +17,8 @@ def purge():
         # Monitoring only keeps the most recent weekly summary. Overdue subscriptions are cleared.
         db.execute(update(Subscription).where(Subscription.next_run<cutoff).values(previous=None))
         db.execute(delete(RateBucket).where(RateBucket.window<int(datetime.now(timezone.utc).timestamp())//60-1440))
-if __name__=='__main__':purge()
+if __name__=='__main__':
+    import json
+    from services.retention import purge_extended
+    purge()
+    print(json.dumps(purge_extended(),sort_keys=True))

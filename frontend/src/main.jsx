@@ -8,3 +8,5 @@ import './styles/dashboard.css'
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode><App /></React.StrictMode>
 )
+
+import './styles/terminal.css'

@@ -1,6 +1,6 @@
 > SUPERSEDED reference: consult `cleanup_deployment.md` and `../dataroom-prep/` for current controls. Historical assumptions below may no longer apply.
 
-# PrivateLens Backup Runbook
+# Perspicil Backup Runbook
 
 ## Objective
 

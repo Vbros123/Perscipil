@@ -1,4 +1,4 @@
-"""Fail-closed client for the PrivateLens licensed evidence gateway."""
+"""Fail-closed client for the Perscipil licensed evidence gateway."""
 from __future__ import annotations
 
 import logging
@@ -6,6 +6,7 @@ import uuid
 from typing import Any
 
 import httpx
+from core.provider_budget import HOOKS
 from pydantic import ValidationError
 
 from core.config import get_settings
@@ -39,12 +40,12 @@ async def fetch_evidence(identity: CompanyIdentity) -> GatewayEvidenceResponse |
     headers = {
         "Authorization": f"Bearer {settings.LICENSED_DATA_API_KEY}",
         "Content-Type": "application/json",
-        "User-Agent": "PrivateLens/4.0 licensed-evidence-client",
+        "User-Agent": "Perscipil/4.0 licensed-evidence-client",
         "X-Request-ID": request_id,
     }
 
     try:
-        async with httpx.AsyncClient(
+        async with httpx.AsyncClient(event_hooks=HOOKS,
             timeout=settings.LICENSED_DATA_TIMEOUT,
             follow_redirects=False,
         ) as client:

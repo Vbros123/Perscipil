@@ -1,18 +1,77 @@
 {
-  "brand": {"name": "PrivateLens", "score": "PrivateScore", "status": "Temporary names pending trademark review"},
-  "stage": "Research MVP with pilot workflow foundations; deployment unverified",
+  "brand": {
+    "name": "Perscipil",
+    "score": "PerpScore",
+    "status": "Product brand; legal entity and trademark review require founder/counsel input",
+    "short_name": "Perscipil",
+    "support_name": "Perscipil Support",
+    "email_sender_name": "Perscipil Security",
+    "api_title": "Perscipil API",
+    "title": "Perscipil | Private Company Intelligence",
+    "description": "Private company financial health research with evidence-weighted scoring, watchlists, reports, and peer comparison.",
+    "legal_entity": null
+  },
+  "stage": "Research MVP; release branch verified in CI, backend activation pending",
   "capabilities": [
-    {"name": "Public evidence collection", "status": "LIVE", "note": "Implemented; availability varies by source and entity. Deployment not verified."},
-    {"name": "Entity resolution", "status": "LIVE", "note": "Ambiguous and non-company entities are gated; not an authoritative registry for all companies."},
-    {"name": "Evidence-weighted research score", "status": "LIVE", "note": "Not a credit rating or default probability; empirical outcomes not validated."},
-    {"name": "Saved companies and history", "status": "LIVE", "note": "Individual accounts only."},
-    {"name": "CSV bulk screening", "status": "PILOT", "note": "100 rows, durable resumable progress; browser drives sequential processing."},
-    {"name": "Weekly reevaluation", "status": "ARCHITECTED", "note": "Durable scheduler interface and in-app events; external scheduler not activated."},
-    {"name": "Customer API", "status": "PILOT", "note": "Account-scoped public-evidence keys, score:read scope, 1000-call lifetime quota."},
-    {"name": "Team workspaces", "status": "PLANNED", "note": "No organizations, memberships, or multi-user roles."},
-    {"name": "Licensed commercial evidence", "status": "ARCHITECTED", "note": "Contracts, granular permissions, retention operations and vendor access required."},
-    {"name": "Consented accounting evidence", "status": "PLANNED", "note": "Codat excluded until per-account consent isolation is implemented."},
-    {"name": "Predictive default probability", "status": "PLANNED", "note": "No labeled outcome validation; not available."},
-    {"name": "Company correction review", "status": "PILOT", "note": "Authenticated report disputes, operator review with append-only review history."}
+    {
+      "name": "Public evidence collection",
+      "status": "LIVE",
+      "note": "Implemented; availability varies by source and entity. Deployment not verified."
+    },
+    {
+      "name": "Entity resolution",
+      "status": "LIVE",
+      "note": "Ambiguous and non-company entities are gated; not an authoritative registry for all companies."
+    },
+    {
+      "name": "Evidence-weighted research score",
+      "status": "LIVE",
+      "note": "Not a credit rating or default probability; empirical outcomes not validated."
+    },
+    {
+      "name": "Saved companies and history",
+      "status": "PILOT",
+      "note": "Individual data and isolated organization-owned resources."
+    },
+    {
+      "name": "CSV bulk screening",
+      "status": "PILOT",
+      "note": "Workspace queue supports 1,000 rows, durable workers, CSV export and idempotency."
+    },
+    {
+      "name": "Weekly reevaluation",
+      "status": "PILOT",
+      "note": "Weekly worker scheduler, in-app events and configured email/webhook delivery; hosting activation pending."
+    },
+    {
+      "name": "Customer API",
+      "status": "PILOT",
+      "note": "Organization-scoped revocable keys, 10,000 lifetime new-job quota and shared 120/minute read/request limit."
+    },
+    {
+      "name": "Team workspaces",
+      "status": "PILOT",
+      "note": "Owner/admin/member roles, invitations, transfer, isolated resources, optional enforced MFA."
+    },
+    {
+      "name": "Licensed commercial evidence",
+      "status": "ARCHITECTED",
+      "note": "Contracts, granular permissions, retention operations and vendor access required."
+    },
+    {
+      "name": "Consented accounting evidence",
+      "status": "ARCHITECTED",
+      "note": "Tenant-bound permissions, expiry, encrypted storage and revocation; vendor integration remains disabled."
+    },
+    {
+      "name": "Predictive default probability",
+      "status": "PLANNED",
+      "note": "No labeled outcome validation; not available."
+    },
+    {
+      "name": "Company correction review",
+      "status": "PILOT",
+      "note": "Authenticated report disputes, operator review with append-only review history."
+    }
   ]
 }

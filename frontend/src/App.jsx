@@ -2,6 +2,7 @@ import { Redirect, Route, Router, Switch } from './router'
 
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AppShell from './components/layout/AppShell'
+import Workspaces from './pages/Workspaces'
 import Account from './pages/Account'
 import Batch from './pages/Batch'
 import ResearchControls from './pages/ResearchControls'
@@ -12,6 +13,7 @@ import Developer from './pages/Developer'
 import ForgotPassword from './pages/ForgotPassword'
 import History from './pages/History'
 import Landing from './pages/Landing'
+import Demo from './pages/Demo'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
 import Onboarding from './pages/Onboarding'
@@ -25,7 +27,7 @@ import Watchlist from './pages/Watchlist'
 function Protected({ children, shell = true }) {
   const { isAuthenticated, loading } = useAuth()
 
-  if (loading) return <div className="screen-loader">Loading PrivateLens</div>
+  if (loading) return <div className="screen-loader">Loading Perscipil</div>
   if (!isAuthenticated) return <Redirect to="/login" />
   return shell ? <AppShell>{children}</AppShell> : children
 }
@@ -33,7 +35,7 @@ function Protected({ children, shell = true }) {
 function PublicOnly({ children }) {
   const { isAuthenticated, loading } = useAuth()
 
-  if (loading) return <div className="screen-loader">Loading PrivateLens</div>
+  if (loading) return <div className="screen-loader">Loading Perscipil</div>
   if (isAuthenticated) return <Redirect to="/dashboard" />
   return children
 }
@@ -44,6 +46,7 @@ export default function App() {
       <Router>
         <Switch>
           <Route path="/" component={Landing} />
+          <Route path="/demo" component={Demo} />
           <Route path="/signup" component={Signup} />
           <Route path="/login"><PublicOnly><Login /></PublicOnly></Route>
           <Route path="/forgot-password"><PublicOnly><ForgotPassword /></PublicOnly></Route>
@@ -53,6 +56,7 @@ export default function App() {
           <Route path="/dashboard"><Protected><Dashboard /></Protected></Route>
           <Route path="/reports/:company"><Protected><CompanyReport /></Protected></Route>
           <Route path="/research-review"><Protected><ResearchControls /></Protected></Route>
+          <Route path="/workspaces"><Protected><Workspaces /></Protected></Route>
           <Route path="/batches"><Protected><Batch /></Protected></Route>
           <Route path="/compare"><Protected><Compare /></Protected></Route>
           <Route path="/watchlist"><Protected><Watchlist /></Protected></Route>
