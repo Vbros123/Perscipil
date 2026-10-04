@@ -20,7 +20,7 @@ certifi==2026.7.22
 click==8.5.0
     # via uvicorn
 fastapi==0.141.1
-    # via -r provider_gateway/requirements.in
+    # via -r requirements.in
 h11==0.16.0
     # via
     #   httpcore
@@ -30,7 +30,7 @@ httpcore==1.0.9
 httptools==0.8.0
     # via uvicorn
 httpx==0.28.1
-    # via -r provider_gateway/requirements.in
+    # via -r requirements.in
 idna==3.20
     # via
     #   anyio
@@ -43,17 +43,17 @@ pluggy==1.6.0
     # via pytest
 pydantic==2.13.5
     # via
-    #   -r provider_gateway/requirements.in
+    #   -r requirements.in
     #   fastapi
     #   pydantic-settings
 pydantic-core==2.46.5
     # via pydantic
 pydantic-settings==2.15.0
-    # via -r provider_gateway/requirements.in
+    # via -r requirements.in
 pygments==2.21.0
     # via pytest
 pytest==9.1.1
-    # via -r provider_gateway/requirements.in
+    # via -r requirements.in
 python-dotenv==1.2.3
     # via
     #   pydantic-settings
@@ -75,8 +75,8 @@ typing-inspection==0.4.4
     #   fastapi
     #   pydantic
     #   pydantic-settings
-uvicorn==0.53.0
-    # via -r provider_gateway/requirements.in
+uvicorn==0.54.0
+    # via -r requirements.in
 uvloop==0.22.1
     # via uvicorn
 watchfiles==1.2.0
