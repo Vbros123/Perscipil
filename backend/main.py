@@ -123,6 +123,8 @@ async def global_exception_handler(request: Request, exc: Exception):
 from routers.workflows import router as workflows_router
 from routers.organizations import router as organizations_router
 from routers.mfa import router as mfa_router
+from routers.decks import router as decks_router
+app.include_router(decks_router)
 app.include_router(mfa_router)
 from routers.customer import router as customer_router
 app.include_router(customer_router)

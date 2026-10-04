@@ -5,6 +5,7 @@ import AppShell from './components/layout/AppShell'
 import Workspaces from './pages/Workspaces'
 import Account from './pages/Account'
 import Batch from './pages/Batch'
+import DeckReview from './pages/DeckReview'
 import ResearchControls from './pages/ResearchControls'
 import CompanyReport from './pages/CompanyReport'
 import Compare from './pages/Compare'
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="/reports/:company"><Protected><CompanyReport /></Protected></Route>
           <Route path="/research-review"><Protected><ResearchControls /></Protected></Route>
           <Route path="/workspaces"><Protected><Workspaces /></Protected></Route>
+          <Route path="/deck-review"><Protected><DeckReview /></Protected></Route>
           <Route path="/batches"><Protected><Batch /></Protected></Route>
           <Route path="/compare"><Protected><Compare /></Protected></Route>
           <Route path="/watchlist"><Protected><Watchlist /></Protected></Route>
