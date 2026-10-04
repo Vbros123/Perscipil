@@ -17,7 +17,7 @@ jobs:
       BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
       BACKUP_DIR: /tmp/privatelens-backup
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check required secrets
         run: |
           test -n "$DATABASE_URL" || (echo "PRODUCTION_DATABASE_URL secret is missing" >&2; exit 1)
