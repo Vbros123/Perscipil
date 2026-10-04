@@ -4,7 +4,7 @@ import io
 import re
 import zipfile
 import posixpath
-from xml.etree import ElementTree as ET
+from defusedxml import ElementTree as ET
 
 MAX_FILE = 2 * 1024 * 1024
 MAX_SLIDES = 60

@@ -92,3 +92,11 @@ def test_zip_expansion_limit():
     output = io.BytesIO()
     with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as z: z.writestr('huge', b'0' * (33 * 1024 * 1024))
     with pytest.raises(ValueError, match='expanded-size'): extract({'name': 'bad.pptx', 'data': base64.b64encode(output.getvalue()).decode()})
+
+
+def test_entity_declarations_rejected_including_utf16():
+    from services.deck_review import xml
+    from defusedxml.common import DefusedXmlException
+    payload = '<!DOCTYPE x [<!ENTITY a "expanded">]><x>&a;</x>'
+    with pytest.raises(ValueError): xml(payload.encode())
+    with pytest.raises(DefusedXmlException): xml(payload.encode('utf-16'))
