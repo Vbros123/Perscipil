@@ -1,14 +1,14 @@
 # Final AI cleanup report
 
-Updated 2026-09-28. Current product brand: Perspicil; see `PERSPICIL_REBRAND_REPORT.md`. Engineering work is on `final-pre-fundraising-cleanup`, draft PR #10. Production promotion remains gated on backend staging activation and authenticated browser verification. A frontend preview is not a full-stack staging deployment.
+Updated 2026-10-04 UTC. Current product brand: **Perscipil**, with **PerpScore** as the display label. Historical rebrand reports record earlier spellings. Engineering work is on `final-pre-fundraising-cleanup`, draft PR #10. Production promotion remains gated on backend staging activation and authenticated browser verification. A frontend preview is not a full-stack staging deployment.
 
 ## 1. Executive Summary
 
-Fixed the red SQLite migration and the Postgres quota-key overflow. Implemented the missing workspace security, monitoring/correction controls, customer API read limits, separate consent encryption, portable one-use recovery codes, shared provider concurrency limits, daily retention coordination, and deletion replay tooling. Completed the corrected seven-slide deck. Expanded CI to real PostgreSQL, encrypted restore verification and full-history Gitleaks scanning. Remaining environment-dependent technical gates are listed explicitly below; this report does not claim all engineering is finished.
+Fixed the red SQLite migration and the Postgres quota-key overflow. Implemented the missing workspace security, monitoring/correction controls, customer API read limits, separate consent encryption, portable one-use recovery codes, shared provider concurrency limits, daily retention coordination, and deletion replay tooling. Completed the redesigned twelve-slide investor deck, with an actual research-terminal screenshot and explicitly labeled commercial hypotheses. Expanded CI to real PostgreSQL, encrypted restore verification and full-history Gitleaks scanning. Remaining environment-dependent technical gates are listed explicitly below; this report does not claim all engineering is finished.
 
 ## 2. Baseline and Git
 
-Production baseline remains `3ed1df1d58e821c246a91b04982f5511ce22d250`. Changes are additive on the dedicated branch; production has not been promoted. Local imported history is synchronized through identical Git trees without rewriting remote history. PR: https://github.com/Vbros123/privatelens/pull/10.
+Production baseline remains `3ed1df1d58e821c246a91b04982f5511ce22d250`. Changes are additive on the dedicated branch; production has not been promoted. Local imported history is synchronized through identical Git trees without rewriting remote history. PR: https://github.com/Vbros123/Perscipil/pull/10.
 
 ## 3. Organizations / RBAC
 
@@ -40,7 +40,11 @@ The deployed preview homepage and login/MFA form were inspected in the browser. 
 
 ## 10. Deployment
 
-Vercel builds the branch successfully. Verified preview for `fc0a9ad0de1c5467e6ea47f6399d6f1eeb58d4b8`: https://privatelens-kzgu41ie6-bruh-gangs-projects.vercel.app. Its frontend still references the existing Render API; this is not an isolated backend staging environment. The Render connector is available. Isolated PostgreSQL 16 database `dpg-das6rme0tbcc73e2v1hg-a` is available in Oregon (free expiry 2026-10-27). The user requested dashboard instructions for remaining Render configuration; see `ops/STAGING_RENDER_SETUP.md`. API/worker runtime secrets, verified mail and an approved backup destination are still unconfigured. A real founder contact from the supplied deck is published as frontend security.txt; backend contact remains configurable.
+The Vercel project is now named `perscipil`. Cleanup commit `031925cecd77dfac598a9abb2585f93380b6a4ce` built successfully after setting a branch-specific Preview `VITE_API_URL` to the isolated Render staging API. Render frontend/public URL and exact CORS origin were updated to match the new preview alias. The frontend CSP permits the staging API. Production has not been promoted.
+
+The isolated API runs against hosted PostgreSQL; migration upgrade and schema-diff checks pass. Secure runtime keys are configured, and Render readiness probes have returned HTTP 200. Email credentials are configured, but the sender and actual delivery are not verified. The worker, offsite backup destination, and real hosted restore remain outstanding. Direct connector SQL is unavailable because the database deliberately blocks external connections; its allowlist has not been weakened.
+
+Vercel preview protection remains enabled. Automatic approval review rejected creating a temporary bearer-style preview access link; explicit approval is needed for that access method before browser verification can continue.
 
 ## 11. Backups / restore
 
@@ -60,9 +64,14 @@ Entity-disjoint time partitions, leakage checks, ROC-AUC, average precision, Bri
 
 ## 15. Corrected deck
 
-`PrivateLens_Corrected_Deck.pdf` is complete as a separate saved copy, retaining seven original slide layouts. All slides were visually inspected; a leftover title glyph was removed. Updated signal counts and source availability, replaced stale screenshots, removed simulated-evidence and unsupported performance/activation implications, labeled target pricing/customers as proposed. Founder market figures retain a verification caveat. The current Perspicil copy is `dataroom-prep/Perspicil_Corrected_Deck.pdf`, with all seven pages visually reviewed and non-brand claims unchanged. See `docs/DECK_CHANGELOG.md`.
+The current deliverable is `Perscipil_Investor_Deck.pptx`: twelve editable slides using the new graphite/teal product screenshots within a clean investor presentation. All twelve slides were rendered and visually checked. Market context is sourced, pricing and pilot goals are hypotheses, and fictional demo companies are identified. This replaces the older seven-slide corrected PDF as the requested pitch deliverable; older PDFs are historical artifacts, not the latest deck.
 
 ## 16. Verification evidence
+
+- Current cleanup commit `031925cecd77dfac598a9abb2585f93380b6a4ce`: CI run 37174459116 passed all five jobs (frontend, backend, PostgreSQL, provider gateway, secret history). This is the same code tree as `d8f879b3e20e05c02a42da35009533451001cac7`, rebuilt with the new staging configuration.
+- Hosted Render migration/schema check passed on 2026-10-04 UTC. Hosted restore and authenticated browser journeys are still separate, incomplete gates.
+
+Historical evidence:
 
 - Previously green full CI: 35797477198 (five jobs).
 - Expanded Postgres run 36206051904: 150 tests passed in 32.82s, including the 1,000 completed-job fixture; restore CLI then exposed a missing SQLAlchemy model registration, now fixed.
@@ -72,7 +81,7 @@ Entity-disjoint time partitions, leakage checks, ROC-AUC, average precision, Bri
 
 ## 17. Remaining technical release gates
 
-1. Complete the requested Render dashboard setup for an isolated staging API/worker using the already-created Postgres database. Configure secure runtime keys, exact CORS/CSP origins, approved mail/delivery destinations, migration startup and readiness checks.
+1. Finish the staging worker and verify real email/delivery destinations. The isolated API, runtime keys, exact CORS/CSP configuration, migration startup and readiness checks are configured. Worker activation needs a paid compute decision; see `ops/STAGING_WORKER_PLAN.md`.
 2. Execute the deployed authenticated browser journeys, responsive/accessibility checks, staging migrations, worker/delivery verification, and an encrypted restore using the actual hosting/backup destination. CI proves code behavior, not this operational deployment.
 3. Activate offsite encrypted backups, separate current deletion-ledger storage/freshness monitoring, retention and alerting. Verify ownership/control-history reconciliation after restoring older backups; do not reopen a restore with unresolved ownership state.
 4. Review and remediate findings from those environment-specific checks before production promotion.
@@ -85,4 +94,4 @@ Founder/counsel: approved policy text and retention periods, trademark/name clea
 
 ## 19. Readiness
 
-Implemented and inspectable research MVP; public frontend preview available. Institutional staging verification remains gated on the owner-run Render setup in `ops/STAGING_RENDER_SETUP.md`. No production promotion or enterprise readiness certification. Updated capability metadata and deployment/API documentation describe implemented versus activated behavior explicitly.
+Implemented and inspectable research MVP; public frontend preview available. Institutional staging verification remains gated on authenticated browser access, worker activation, verified delivery and an actual offsite backup/restore drill. No production promotion or enterprise readiness certification. Updated capability metadata and deployment/API documentation describe implemented versus activated behavior explicitly.
