@@ -1,7 +1,17 @@
 import asyncio
 import sys
+import os
+import subprocess
 
 from core.embedded_worker import embedded_worker, stop_process
+
+
+def test_standalone_worker_runs_retention_on_first_cycle(tmp_path):
+    env = {**os.environ, "DATABASE_URL": f"sqlite:///{tmp_path / 'worker.db'}", "ENVIRONMENT": "test"}
+    subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], env=env, check=True, capture_output=True)
+    result = subprocess.run([sys.executable, "-m", "scripts.run_worker", "--once"], env=env, check=True, capture_output=True, text=True, timeout=30)
+    assert "retention_completed" in result.stderr
+    assert "worker_cycle scheduled=0 processed=0 delivered=0" in result.stderr
 
 
 def test_child_is_restarted_and_stops_with_web_service(tmp_path):

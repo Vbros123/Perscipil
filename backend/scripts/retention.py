@@ -2,11 +2,12 @@
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, update
 from core.config import get_settings
-from core.database import SessionLocal
+from core.database import SessionLocal, load_models
 from models.company import CompanyReport,CompanySearch
 from models.workflows import Batch,BatchItem,MonitorEvent,Subscription,RateBucket
 
 def purge():
+    load_models()
     settings=get_settings()
     cutoff=datetime.now(timezone.utc)-timedelta(days=settings.REPORT_RETENTION_DAYS)
     with SessionLocal.begin() as db:

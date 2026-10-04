@@ -6,18 +6,21 @@ from services.workspace_monitoring import tick
 from services.notifications import deliver_due
 from core.config import get_settings
 from core.observability import configure_logging
+from core.database import load_models
 
 
 async def main(once=False):
     configure_logging()
     get_settings().validate_runtime()
+    load_models()
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, stop.set)
-    last_retention = 0.0
+    last_retention = float("-inf")
     while not stop.is_set():
         started = time.monotonic()
+        phase = "retention"
         try:
             if time.monotonic() - last_retention >= 86400:
                 from scripts.retention import purge
@@ -33,8 +36,11 @@ async def main(once=False):
                         release("daily-retention", lease)
                         raise
                 last_retention = time.monotonic()
+            phase = "monitoring"
             scheduled = tick()
+            phase = "jobs"
             processed = await run_cycle()
+            phase = "delivery"
             delivered = await deliver_due()
             logging.getLogger("privatelens.worker").info(
                 "worker_cycle scheduled=%d processed=%d delivered=%d duration_ms=%d",
@@ -43,9 +49,9 @@ async def main(once=False):
                 delivered,
                 int((time.monotonic() - started) * 1000),
             )
-        except Exception:
+        except Exception as exc:
             logging.getLogger("privatelens.worker").error(
-                "worker_cycle_failed", exc_info=False
+                "worker_cycle_failed phase=%s error_type=%s", phase, type(exc).__name__, exc_info=False
             )
             if once:
                 raise

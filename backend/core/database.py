@@ -36,12 +36,17 @@ def get_db() -> Generator:
         db.close()
 
 
-def init_db() -> None:
+def load_models() -> None:
+    """Register relationships for standalone commands without modifying schema."""
     from models.company import CompanyReport, CompanySearch, SavedCompany  # noqa: F401
     from models.settings import UserSettings  # noqa: F401
     from models.user import AuthAuditEvent, SecurityToken, User  # noqa: F401
 
     from models import consent, mfa, operations, organizations, workflows  # noqa: F401
+
+
+def init_db() -> None:
+    load_models()
     Base.metadata.create_all(bind=engine)
 
 # SQLite must enforce the same ownership cascade constraints as Postgres.
