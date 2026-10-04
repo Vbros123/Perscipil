@@ -38,7 +38,12 @@ settings.validate_runtime()
 async def lifespan(app: FastAPI):
     if settings.AUTO_CREATE_TABLES:
         init_db()
-    yield
+    if settings.EMBEDDED_WORKER_ENABLED:
+        from core.embedded_worker import embedded_worker
+        async with embedded_worker():
+            yield
+    else:
+        yield
 
 
 app = FastAPI(
