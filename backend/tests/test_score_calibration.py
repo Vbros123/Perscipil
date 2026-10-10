@@ -61,9 +61,8 @@ def test_single_perfect_news_hit_cannot_score_1000():
         _signal("SEC / Regulatory Filings", None, status="not_applicable", category="legal"),
     ], model_release_stage="shadow")
 
-    assert result["private_score"] is not None
-    assert result["private_score"] < 700
-    assert result["private_score"] != 1000
+    assert result["private_score"] is None
+    assert result["rating"] == "Insufficient public evidence"
     assert result["meta"]["confidence"] < 0.5
     news = next(item for item in result["breakdown"] if item["signal"] == "News & Media Sentiment")
     assert news["used_in_score"] is True
@@ -100,8 +99,8 @@ def test_profile_b_web_presence_without_financials_is_not_near_perfect():
         *LICENSED_UNAVAILABLE,
     ], model_release_stage="shadow")
 
-    assert result["private_score"] is not None
-    assert result["private_score"] < 800
+    assert result["private_score"] is None
+    assert result["rating"] == "Insufficient public evidence"
     assert result["meta"]["confidence"] < 0.45
     assert result["meta"]["evidence_quality"] in {"low", "medium"}
 
@@ -114,10 +113,10 @@ def test_profile_c_very_little_evidence_is_constrained():
         *LICENSED_UNAVAILABLE,
     ], model_release_stage="shadow")
 
-    assert result["private_score"] is not None
-    assert result["private_score"] < 650
+    assert result["private_score"] is None
+    assert result["rating"] == "Insufficient public evidence"
     assert result["meta"]["confidence"] < 0.35
-    assert result["scoring_status"] in {"limited", "rated"}
+    assert result["scoring_status"] == "insufficient_data"
 
 
 def test_profile_d_negative_verified_evidence_scores_low():
@@ -157,9 +156,8 @@ def test_profile_f_modelled_signals_cannot_dominate():
         *LICENSED_UNAVAILABLE,
     ], model_release_stage="shadow")
 
-    assert result["private_score"] is not None
-    assert result["private_score"] < 800
-    assert result["private_score"] != 1000
+    assert result["private_score"] is None
+    assert result["rating"] == "Insufficient public evidence"
     assert result["meta"]["confidence"] < 0.5
     assert result["meta"]["evidence_quality"] == "modelled"
     modelled = [item for item in result["breakdown"] if item["availability_status"] == "modelled"]
@@ -196,8 +194,8 @@ def test_early_stage_public_presence_is_not_a_perfect_score():
         *LICENSED_UNAVAILABLE,
     ], model_release_stage="shadow", resolution_confidence=40)
 
-    assert result["private_score"] is not None
-    assert result["private_score"] < 1000
+    assert result["private_score"] is None
+    assert result["rating"] == "Insufficient public evidence"
     assert result["meta"]["confidence"] < 0.4
     assert result["meta"]["data_coverage"]["unavailableSignals"] >= 5
     used = [item for item in result["breakdown"] if item["used_in_score"]]

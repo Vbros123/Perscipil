@@ -63,6 +63,10 @@ export default function CompanySummary({ result }) {
   const quality = nested.evidenceQuality || meta.evidence_quality || 'unavailable'
   const limited = result.scoring_status === 'limited'
   const counts = coverageFrom(result)
+  const reasons = (result.dataCoverage || meta.data_coverage || {}).availabilityReasons
+  const unavailableDetail = reasons
+    ? `${reasons.not_connected || 0} not connected · ${reasons.lookup_failed || 0} lookup failed · ${reasons.no_verified_match || 0} no verified match`
+    : `${counts.unavailable} unavailable`
   const coverageDisplay = Number.isFinite(Number(counts.percent))
     ? `${Math.round(counts.percent)}%`
     : percent(coverage)
@@ -100,7 +104,7 @@ export default function CompanySummary({ result }) {
               <strong>{scoreValue}{rated ? ' / 1000' : ''}</strong>
             </div>
             <div>
-              <span>Confidence</span>
+              <span>Evidence confidence</span>
               <strong>{percent(confidence)}</strong>
             </div>
             <div>
@@ -121,9 +125,9 @@ export default function CompanySummary({ result }) {
       <div className="metric-grid compact evidence-metrics">
         <MetricCard
           icon={Gauge}
-          label="Confidence"
+          label="Evidence confidence"
           value={percent(confidence)}
-          detail="How much reliable evidence we have — separate from the score"
+          detail="Evidence-strength indicator; not a probability of accuracy"
         />
         <MetricCard
           icon={Database}
@@ -141,7 +145,7 @@ export default function CompanySummary({ result }) {
           icon={Activity}
           label="Live signals"
           value={String(counts.live)}
-          detail={`${counts.modelled} modelled · ${counts.unavailable} missing`}
+          detail={unavailableDetail}
         />
         <MetricCard
           icon={Clock3}

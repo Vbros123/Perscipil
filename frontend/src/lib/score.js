@@ -8,10 +8,9 @@ const PUBLISHED_STATUSES = new Set(['rated', 'limited'])
 export function isRated(item) {
   if (!item) return false
   if (item.scoring_status) return PUBLISHED_STATUSES.has(item.scoring_status)
-  const nested = Number(item.score?.value)
-  if (Number.isFinite(nested)) return true
   if (item.rating && UNRATED_RATINGS.has(item.rating)) return false
-  return Number.isFinite(Number(item.private_score))
+  const value = item.score?.value ?? item.private_score
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
 }
 
 // Returns the score only when it is a real published number. `0` is a valid

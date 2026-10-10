@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+from urllib.parse import quote
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -37,6 +38,7 @@ ORGANISATION_HINTS = (
     "manufacturer", "retailer", "bank", "insurer", "airline", "startup",
     "subsidiary", "holding", "group", "brand", "organisation", "organization",
     "supplier", "operator", "provider", "chain", "publisher", "studio",
+    "professional services network", "accounting firm",
 )
 PUBLIC_HINTS = (
     "publicly traded", "public company", "listed on", "nyse", "nasdaq",
@@ -344,13 +346,41 @@ class ResolvedCompany:
 
 
 async def _wikipedia_summary(client: httpx.AsyncClient, title: str) -> dict | None:
-    resp = await client.get(
-        f"https://en.wikipedia.org/api/rest_v1/page/summary/{title.replace(' ', '_')}",
-        headers=HEADERS,
-    )
-    if resp.status_code != 200:
-        return None
-    return resp.json()
+    # Try both supported representations independently; a search/REST outage
+    # must not erase a usable exact-title article from the Action API.
+    try:
+        resp = await client.get(
+            f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(title.replace(' ', '_'), safe='')}",
+            headers=HEADERS,
+        )
+        if resp.status_code == 200:
+            summary = resp.json()
+            if summary.get("title") and summary.get("extract"):
+                return summary
+    except (httpx.HTTPError, ValueError):
+        pass
+    try:
+        resp = await client.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={"action": "query", "titles": title, "redirects": 1,
+                    "prop": "extracts|pageprops|description", "exintro": 1,
+                    "explaintext": 1, "format": "json", "formatversion": 2},
+            headers=HEADERS,
+        )
+        if resp.status_code != 200:
+            return None
+        pages = resp.json().get("query", {}).get("pages", [])
+        for page in pages:
+            if "missing" in page or not page.get("extract"):
+                continue
+            props = page.get("pageprops", {})
+            return {"title": page.get("title"), "extract": page["extract"],
+                    "description": page.get("description", ""),
+                    "wikibase_item": props.get("wikibase_item"),
+                    "type": "disambiguation" if "disambiguation" in props else "standard"}
+    except (httpx.HTTPError, ValueError, TypeError):
+        pass
+    return None
 
 
 async def _wikidata_instance_ids(client: httpx.AsyncClient, qid: str) -> list[str]:
@@ -593,23 +623,27 @@ async def _resolve_from_public_sources(name: str, key: str, selected_title: str 
                 logger.info("[Resolver] Query=%r selected=%r status=unresolved", name, selected_title)
                 return _unresolved(name, key)
 
-            search = await client.get(
-                "https://en.wikipedia.org/w/api.php",
-                params={
-                    "action": "query",
-                    "list": "search",
-                    "srsearch": f"{name} company",
-                    "srlimit": 8,
-                    "format": "json",
-                },
-                headers=HEADERS,
-            )
             titles: list[str] = [name]
-            if search.status_code == 200:
-                for hit in search.json().get("query", {}).get("search", []):
-                    title = hit.get("title")
-                    if title and title not in titles:
-                        titles.append(title)
+            try:
+                search = await client.get(
+                    "https://en.wikipedia.org/w/api.php",
+                    params={
+                        "action": "query",
+                        "list": "search",
+                        "srsearch": f"{name} company",
+                        "srlimit": 8,
+                        "format": "json",
+                    },
+                    headers=HEADERS,
+                )
+                if search.status_code == 200:
+                    for hit in search.json().get("query", {}).get("search", []):
+                        title = hit.get("title")
+                        if title and title not in titles:
+                            titles.append(title)
+
+            except (httpx.HTTPError, ValueError):
+                logger.info("[Resolver] Search unavailable; trying exact title")
 
             discovered: dict[str, tuple[CompanyCandidate, dict]] = {}
             for title in titles:
@@ -656,7 +690,7 @@ async def _resolve_from_public_sources(name: str, key: str, selected_title: str 
             best = scoreable[0]
             second = scoreable[1] if len(scoreable) > 1 else None
             margin = best.confidence - (second.confidence if second else 0)
-            auto = second is None or (best.confidence >= AUTO_SELECT_THRESHOLD and margin >= MIN_MARGIN)
+            auto = (second is None and best.confidence >= 70) or (best.confidence >= AUTO_SELECT_THRESHOLD and margin >= MIN_MARGIN)
 
             if auto:
                 summary = next(item[1] for item in ranked if item[0].title == best.title)
