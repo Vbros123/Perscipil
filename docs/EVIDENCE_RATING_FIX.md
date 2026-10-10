@@ -1,8 +1,8 @@
 # Evidence publication correction — 2026-10-10
 
-Deloitte's production report had one low-quality news signal, 2.22% evidence confidence,
-and no verified financial observations, but published 258/1000 and “Distressed”.
-This was a scoring publication error, not an adverse finding about Deloitte.
+Sparse public evidence could produce an adverse rating because the evidence
+ceiling lowered a model output before rating-band assignment. Missing evidence
+must not be interpreted as an adverse finding about a company.
 
 Changes:
 - Public reports require at least 40% quality-weighted coverage, 30% evidence
