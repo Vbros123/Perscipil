@@ -1,4 +1,5 @@
 import asyncio
+from urllib.parse import unquote
 
 from services.evidence import CompanyIdentity
 from services.resolver import (
@@ -119,7 +120,7 @@ class _FakeClient:
             return _FakeResponse({"query": {"search": [{"title": title} for title in self.search_titles]}})
         if params.get("action") == "wbgetentities":
             return _FakeResponse({"entities": {}})
-        title = url.rstrip("/").rsplit("/", 1)[-1].replace("_", " ")
+        title = unquote(url.rstrip("/").rsplit("/", 1)[-1]).replace("_", " ")
         summary = self.summaries.get(title)
         if summary is None:
             return _FakeResponse({}, status=404)
@@ -304,3 +305,44 @@ def test_selected_title_skips_disambiguation(monkeypatch):
     assert resolved.resolution_status == "resolved"
     assert resolved.needs_disambiguation is False
     assert resolved.canonical_name == "United Airlines"
+
+
+def test_professional_services_network_is_an_organisation():
+    from services.resolver import _looks_like_organisation
+    summary = _summary('Deloitte', 'Multinational professional services network',
+                       'Deloitte is a multinational professional services network based in London, England.')
+    assert _looks_like_organisation(summary)
+    assert _entity_type_from_text(summary['title'], summary['description'], summary['extract']) == 'company'
+
+
+def test_wikipedia_rest_failure_uses_action_api_and_encodes_title():
+    from services.resolver import _wikipedia_summary
+    class Client:
+        async def get(self, url, params=None, headers=None):
+            if '/page/summary/' in url:
+                assert url.endswith('Example_%26_Co%2FDivision')
+                return _FakeResponse({}, status=503)
+            assert params['titles'] == 'Example & Co/Division'
+            return _FakeResponse({'query': {'pages': [{
+                'title': 'Example & Co/Division', 'extract': 'An accounting firm.',
+                'pageprops': {'wikibase_item': 'Q123'},
+            }]}})
+    summary = asyncio.run(_wikipedia_summary(Client(), 'Example & Co/Division'))
+    assert summary['wikibase_item'] == 'Q123'
+    assert summary['extract'] == 'An accounting firm.'
+
+
+def test_search_timeout_does_not_prevent_exact_title_resolution(monkeypatch):
+    import httpx
+    _patch_client(monkeypatch, {'Deloitte': _summary(
+        'Deloitte', 'Multinational professional services network',
+        'Deloitte is a multinational professional services network.')}, [])
+    original = _FakeClient.get
+    async def get(self, url, params=None, headers=None):
+        if (params or {}).get('list') == 'search':
+            raise httpx.ReadTimeout('search timed out')
+        return await original(self, url, params=params, headers=headers)
+    monkeypatch.setattr(_FakeClient, 'get', get)
+    result = asyncio.run(resolve_company('Deloitte'))
+    assert result.resolution_status == 'resolved'
+    assert result.wikipedia_title == 'Deloitte'

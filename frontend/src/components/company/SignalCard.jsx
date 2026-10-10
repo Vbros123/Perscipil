@@ -33,7 +33,12 @@ export default function SignalCard({ signal }) {
   const tone = toneForScore(score ?? 0)
   const confidence = Number(signal?.entity_match_confidence)
   const statusKey = signal.availability_status || signal.status || (signal.is_simulated ? 'unavailable' : 'live')
-  const badge = STATUS_BADGES[statusKey] || { label: String(statusKey).replaceAll('_', ' ').toUpperCase(), tone: 'neutral' }
+  const reasonBadges = {
+    not_connected: { label: 'NOT CONNECTED', tone: 'neutral' },
+    lookup_failed: { label: 'LOOKUP FAILED', tone: 'warning' },
+    no_verified_match: { label: 'NO VERIFIED MATCH', tone: 'neutral' },
+  }
+  const badge = reasonBadges[signal.availability_reason] || STATUS_BADGES[statusKey] || { label: String(statusKey).replaceAll('_', ' ').toUpperCase(), tone: 'neutral' }
   const qualityKey = signal.evidenceQuality || signal.evidence_quality || (statusKey === 'modelled' ? 'modelled' : statusKey)
   const qualityBadge = QUALITY_BADGES[qualityKey]
   const showScore = Boolean(signal.used_in_score) && hasScore
