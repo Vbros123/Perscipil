@@ -146,8 +146,8 @@ def test_partial_collector_timeout_does_not_stop_others(monkeypatch):
     assert sources["wikipedia"] == "unavailable"
     assert sources["jobs"] == "live"
     result = compute_score(collection["signals"], model_release_stage="shadow")
-    assert result["private_score"] is not None
-    assert result["scoring_status"] in {"rated", "limited"}
+    assert result["private_score"] is None
+    assert result["scoring_status"] == "insufficient_data"
 
 
 def test_unrated_report_lists_failed_sources():

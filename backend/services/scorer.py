@@ -514,12 +514,33 @@ def compute_score(
         elif resolution_confidence is not None and resolution_confidence < 75:
             public_confidence *= 0.80
         evidence_confidence = max(0.0, min(1.0, public_confidence))
-        if evidence_confidence < 0.30 and rating in {"Exceptional", "Strong"}:
-            rating = "Adequate"
+        # A sparse or purely supporting report cannot support a company rating.
+        # Keep the internal model output for audit, never publish it as distress.
+        public_gates = {
+            "coverage": coverage >= LIMITED_COVERAGE_THRESHOLD,
+            "confidence": evidence_confidence >= 0.30,
+            "core_evidence": any(row["quality"] == "high" and row["status"] in {"live", "verified"} for row in core),
+            "entity_match": resolution_confidence is not None and resolution_confidence >= 75,
+        }
+        if not all(public_gates.values()) and not (mixed_track and evidence_ready and model_release_stage == "validated"):
+            private_score = UNRATED_SCORE
+            scoring_status = "insufficient_data"
+            rating = "Insufficient public evidence"
+            color = PRELIMINARY_COLOR
             summary = (
-                f"{summary} The Strong/Exceptional label is withheld because confidence is "
-                f"{evidence_confidence:.0%}; score, confidence, and coverage are separate measures."
+                "Not enough verified, company-matched evidence to publish a PerpScore. "
+                "Available observations are shown below; missing data is not evidence of financial distress."
             )
+        elif public_track:
+            # Public evidence is research context, not a validated credit rating.
+            rating = "Public evidence available"
+            color = PRELIMINARY_COLOR
+        elif not evidence_ready or model_release_stage != "validated":
+            private_score = UNRATED_SCORE
+            scoring_status = "validation_hold" if evidence_ready else "insufficient_data"
+            rating = "Validation hold" if evidence_ready else "Preliminary"
+            color = PRELIMINARY_COLOR
+            summary = "Licensed evidence requires sufficient coverage, verified identity, provider diversity, and model validation before a rating is published."
         model_version = "public-v2" if public_track else "public-v2+licensed-v4"
     elif licensed_usable_weight > 0:
         scoring_track = "licensed"

@@ -1,4 +1,4 @@
-"""Public-track scoring: publish a number from usable public signals."""
+"""Public-track scoring: withhold ratings from insufficient evidence."""
 import asyncio
 
 from services.collectors import CollectorResult, collect_all
@@ -21,7 +21,7 @@ def _public(name, raw, status="live", category="operational", **extra):
     }
 
 
-def test_public_wikipedia_and_jobs_publish_a_numeric_score():
+def test_public_wikipedia_and_jobs_are_observations_not_a_rating():
     result = compute_score([
         _public("Brand Legitimacy & Web Presence", 78, category="digital"),
         _public("Job Posting Velocity", 70, category="operational"),
@@ -30,9 +30,8 @@ def test_public_wikipedia_and_jobs_publish_a_numeric_score():
         _public("Company Stability", 90, category="operational"),
     ], model_release_stage="shadow")
 
-    assert result["private_score"] is not None
-    assert 0 <= result["private_score"] <= 1000
-    assert result["scoring_status"] in {"rated", "limited"}
+    assert result["private_score"] is None
+    assert result["scoring_status"] == "insufficient_data"
     assert result["meta"]["scoring_track"] == "public"
     assert result["meta"]["confidence"] > 0
     assert result["meta"]["evidence_coverage"] > 0
@@ -55,8 +54,8 @@ def test_sec_not_applicable_does_not_zero_the_score():
         },
     ], model_release_stage="shadow")
 
-    assert result["private_score"] is not None
-    assert result["scoring_status"] in {"rated", "limited"}
+    assert result["private_score"] is None
+    assert result["scoring_status"] == "insufficient_data"
     sec = next(item for item in result["breakdown"] if item["signal"] == "SEC / Regulatory Filings")
     assert sec["used_in_score"] is False
     assert sec["availability_status"] == "not_applicable"
@@ -99,8 +98,8 @@ def test_licensed_live_overlay_increases_coverage_without_fake_values():
     ], model_release_stage="shadow")
 
     assert with_licensed["meta"]["evidence_coverage"] >= public_only["meta"]["evidence_coverage"]
-    assert with_licensed["scoring_status"] in {"rated", "limited"}
-    assert with_licensed["private_score"] is not None
+    assert with_licensed["scoring_status"] == "insufficient_data"
+    assert with_licensed["private_score"] is None
 
 
 def test_public_mode_does_not_invent_licensed_scores():
@@ -128,7 +127,7 @@ def test_public_mode_does_not_invent_licensed_scores():
     assert licensed
     assert all(item["used_in_score"] is False for item in licensed)
     assert all(item["raw_score"] is None for item in licensed)
-    assert result["private_score"] is not None
+    assert result["private_score"] is None
 
 
 def test_collector_crash_still_builds_a_report(monkeypatch):
@@ -178,8 +177,8 @@ def test_collector_crash_still_builds_a_report(monkeypatch):
     collection = asyncio.run(collect_all(CompanyIdentity(legal_name="Example Manufacturing")))
     assert collection["partial_failure"] is True
     result = compute_score(collection["signals"], model_release_stage="shadow")
-    assert result["private_score"] is not None
-    assert result["scoring_status"] in {"rated", "limited"}
+    assert result["private_score"] is None
+    assert result["scoring_status"] == "insufficient_data"
     wiki = next(item for item in result["breakdown"] if item["signal"] == "Brand Legitimacy & Web Presence")
     assert wiki["used_in_score"] is False
     jobs_signal = next(item for item in result["breakdown"] if item["signal"] == "Job Posting Velocity")

@@ -48,8 +48,7 @@ def test_gleif_and_census_do_not_inflate_score():
     used = {item["signal"]: item for item in result["breakdown"] if item["used_in_score"]}
     assert "Legal Entity Identity" not in used
     assert "Industry Context" not in used
-    assert result["private_score"] is not None
-    assert result["private_score"] < 700
+    assert result["private_score"] is None
 
 
 def test_sec_company_facts_can_score_and_census_cannot():
@@ -85,8 +84,10 @@ def test_sec_outranks_identity_only_public_context():
     with_sec = compute_score([
         _signal("SEC Financial Evidence", 82, "financial", quality="high"),
         _signal("Company Stability", 66, "operational", quality="medium"),
-    ], model_release_stage="shadow")
-    assert with_sec["private_score"] > identity_only["private_score"]
+    ], model_release_stage="shadow", resolution_confidence=95)
+    assert identity_only["private_score"] is None
+    assert with_sec["private_score"] is not None
+    assert with_sec["rating"] == "Public evidence available"
 
 
 def test_low_confidence_does_not_use_strong_label():

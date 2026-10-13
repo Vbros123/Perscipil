@@ -557,13 +557,8 @@ def _no_wikipedia_signals(name: str, reason: str) -> list[dict[str, Any]]:
 
 
 async def _wikipedia_summary(client: httpx.AsyncClient, title: str) -> dict | None:
-    resp = await client.get(
-        f"https://en.wikipedia.org/api/rest_v1/page/summary/{title.replace(' ', '_')}",
-        headers=HEADERS,
-    )
-    if resp.status_code != 200:
-        return None
-    return resp.json()
+    from services.resolver import _wikipedia_summary as fetch_summary
+    return await fetch_summary(client, title)
 
 
 async def collect_wikipedia(name: str, resolved=None) -> CollectorResult:
@@ -578,23 +573,27 @@ async def collect_wikipedia(name: str, resolved=None) -> CollectorResult:
         return _result("wikipedia", _no_wikipedia_signals(name, "no searchable company name was provided"))
     try:
         async with ProviderClient(event_hooks=HOOKS, timeout=_http_timeout()) as client:
-            search = await client.get(
-                "https://en.wikipedia.org/w/api.php",
-                params={
-                    "action": "query",
-                    "list": "search",
-                    "srsearch": f"{name} company",
-                    "srlimit": 5,
-                    "format": "json",
-                },
-                headers=HEADERS,
-            )
             candidates: list[str] = [name]
-            if search.status_code == 200:
-                for hit in search.json().get("query", {}).get("search", []):
-                    title = hit.get("title")
-                    if title and title not in candidates:
-                        candidates.append(title)
+            try:
+                search = await client.get(
+                    "https://en.wikipedia.org/w/api.php",
+                    params={
+                        "action": "query",
+                        "list": "search",
+                        "srsearch": f"{name} company",
+                        "srlimit": 5,
+                        "format": "json",
+                    },
+                    headers=HEADERS,
+                )
+                if search.status_code == 200:
+                    for hit in search.json().get("query", {}).get("search", []):
+                        title = hit.get("title")
+                        if title and title not in candidates:
+                            candidates.append(title)
+
+            except (httpx.HTTPError, ValueError):
+                pass  # Exact-title lookup is independent of search availability.
 
             for title in candidates:
                 summary = await _wikipedia_summary(client, title)
@@ -818,6 +817,17 @@ async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
             unverified_count = len(results) - count
             truncated = bool(data.get("page_metadata", {}).get("hasNext"))
             exact_unique = bool(recipient) and not recipient.get("ambiguous")
+            if count == 0 and results:
+                return _result(
+                    "usaspending",
+                    [_unavailable_signal(
+                        "Government Contract Awards", "🏛️", "government", source_url,
+                        f"{unverified_count} similarly named award(s) could not be verified against this entity. "
+                        "Select the exact legal entity or provide a verified recipient identifier; "
+                        "these awards were not combined with this company's records.",
+                    )],
+                    entity_match="Unresolved", source_url=source_url,
+                )
             if count == 0:
                 return _result(
                     "usaspending",

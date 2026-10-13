@@ -10,7 +10,7 @@ from typing import Any
 from core.cache import score_cache
 from core.config import get_settings
 from services.collectors import collect_all
-from services.evidence import CompanyIdentity, evidence_hash
+from services.evidence import CompanyIdentity, SIGNAL_SPECS, evidence_hash
 from services.licensed_data import enabled as licensed_data_enabled
 from services.resolver import ResolvedCompany, canonical_key, resolve_company
 from services.scorer import PUBLISHED_SCORE_STATUSES, compute_score
@@ -150,6 +150,7 @@ def _nested_signals(breakdown: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "value": item.get("display"),
             "score": item.get("raw_score") if item.get("used_in_score") else None,
             "weight": item.get("weight"),
+            "availabilityReason": item.get("availability_reason"),
             "status": item.get("availability_status") or item.get("status") or "unavailable",
             "source": item.get("provider") or item.get("track"),
             "sourceUrl": item.get("source_url"),
@@ -172,7 +173,7 @@ async def score_company(
     company_clean = identity.legal_name
     start = time.perf_counter()
     selected = (selected_title or "").strip() or None
-    cache_key = "score:v12:" + scoring_config_hash() + ":" + __import__("hashlib").sha256(settings.PROVIDER_PERMISSIONS_JSON.encode()).hexdigest() + ":" + identity.cache_key() + (f":sel:{canonical_key(selected)}" if selected else "")
+    cache_key = "score:v13:" + scoring_config_hash() + ":" + __import__("hashlib").sha256(settings.PROVIDER_PERMISSIONS_JSON.encode()).hexdigest() + ":" + identity.cache_key() + (f":sel:{canonical_key(selected)}" if selected else "")
 
     if not refresh:
         cached = await score_cache.get(cache_key)
@@ -202,6 +203,37 @@ async def score_company(
         logger.info("[Collectors] %s: %s", item.source, item.status)
     signals = collection["signals"]
     evidence = collection["evidence"]
+    # Availability and why data is absent are separate dimensions.
+    source_states = {item.source: item for item in collection.get("collector_results") or []}
+    source_for_signal = {
+        "Brand Legitimacy & Web Presence": "wikipedia", "Company Stability": "wikipedia",
+        "Job Posting Velocity": "jobs", "News & Media Sentiment": "news",
+        "Industry Context": "census", "SEC Financial Evidence": "sec",
+        "Government Contract Awards": "usaspending", "Legal Entity Identity": "gleif",
+    }
+    for signal in signals:
+        if signal.get("availability_status") != "unavailable":
+            continue
+        spec = SIGNAL_SPECS.get(signal.get("signal"), {})
+        source = source_states.get(source_for_signal.get(signal.get("signal")))
+        if spec.get("track") == "licensed":
+            reason = "not_connected" if not licensed_data_enabled() else "no_verified_match"
+            signal["insight"] = (
+                "Licensed provider not connected. No company value was inferred."
+                if reason == "not_connected" else
+                "The configured gateway returned no usable, permitted evidence for this signal."
+            )
+        elif source and source.error_code in {"NOT_CONFIGURED", "OPTIONAL_UNAVAILABLE"}:
+            reason = "not_connected"
+        elif source and (source.error_code or source.error):
+            reason = "lookup_failed"
+        else:
+            reason = "no_verified_match"
+        signal["availability_reason"] = reason
+    availability_counts = {
+        reason: sum(s.get("availability_reason") == reason for s in signals)
+        for reason in ("not_connected", "lookup_failed", "no_verified_match")
+    }
     live_count = sum(1 for item in signals if item.get("availability_status") in {"live", "verified"} and item.get("is_scored"))
     modelled_count = sum(1 for item in signals if item.get("availability_status") == "modelled" and item.get("is_scored"))
     logger.info("[Aggregator] Live signals: %s modelled: %s total: %s", live_count, modelled_count, len(signals))
@@ -230,7 +262,7 @@ async def score_company(
     if collection.get("partial_failure"):
         warnings.append("One or more data sources could not be retrieved. Report used remaining signals.")
     if resolved.limited_identification:
-        warnings.append("Limited company identification. Score uses whatever public signals could be collected.")
+        warnings.append("Company identification is incomplete. Observations may be shown without a published score.")
 
     collectors = collection.get("collector_results") or []
     required = [item for item in collectors if not getattr(item, "optional", False)]
@@ -244,6 +276,7 @@ async def score_company(
             for item in required if item.status == "unavailable"
         ],
     }
+    data_coverage["availabilityReasons"] = availability_counts
     data_sources = _data_sources(collection)
     growth_signals = _growth_signals(result["breakdown"])
 

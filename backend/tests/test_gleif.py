@@ -196,8 +196,8 @@ def test_gleif_live_identity_is_not_scored():
     gleif = next(item for item in scored["breakdown"] if item["signal"] == "Legal Entity Identity")
     assert gleif["used_in_score"] is False
     assert gleif["weighted_contribution"] == 0
-    assert scored["private_score"] is not None
-    assert scored["private_score"] < 700
+    assert scored["private_score"] is None
+    assert scored["rating"] == "Insufficient public evidence"
 
 
 def test_live_gleif_cargill_when_reachable():
