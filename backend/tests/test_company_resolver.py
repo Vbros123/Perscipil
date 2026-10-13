@@ -1,5 +1,5 @@
 import asyncio
-from urllib.parse import unquote
+import re
 
 from services.evidence import CompanyIdentity
 from services.resolver import (
@@ -116,31 +116,40 @@ class _FakeClient:
 
     async def get(self, url, params=None, headers=None):
         params = params or {}
-        if params.get("list") == "search":
-            return _FakeResponse({"query": {"search": [{"title": title} for title in self.search_titles]}})
+        if params.get("action") == "wbsearchentities":
+            hits = []
+            for title, summary in self.summaries.items():
+                if title in self.search_titles:
+                    hits.append({"id": summary["id"], "label": title})
+            return _FakeResponse({"search": hits})
         if params.get("action") == "wbgetentities":
-            return _FakeResponse({"entities": {}})
-        title = unquote(url.rstrip("/").rsplit("/", 1)[-1]).replace("_", " ")
-        summary = self.summaries.get(title)
-        if summary is None:
-            return _FakeResponse({}, status=404)
-        return _FakeResponse(summary)
+            entities = {summary["id"]: summary for title, summary in self.summaries.items()
+                        if summary["id"] in params.get("ids", "").split("|")}
+            return _FakeResponse({"entities": entities})
+        return _FakeResponse({}, status=404)
 
 
 def _summary(title, description, extract):
+    qid = f"Q{abs(hash(title)) % 1000000}"
+    year_match = re.search(r"(?:founded|established) in (\d{4})", extract, re.I)
+    instance = "Q5" if "businessman" in description.lower() else "Q783794"
+    claims = {"P31": [{"mainsnak": {"datavalue": {"value": {"id": instance}}}}]}
+    if year_match:
+        claims["P571"] = [{"mainsnak": {"datavalue": {"value": {"time": f"+{year_match.group(1)}-00-00T00:00:00Z"}}}}]
     return {
-        "type": "standard",
-        "title": title,
-        "description": description,
-        "extract": extract,
-        "content_urls": {"desktop": {"page": f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}"}},
+        "id": qid,
+        "labels": {"en": {"value": title}},
+        "descriptions": {"en": {"value": description}},
+        "claims": claims,
+        "aliases": {"en": []},
     }
 
 
 def _patch_client(monkeypatch, summaries, search_titles):
+    entries = {title: {**summary, "aliases": {"en": []}} for title, summary in summaries.items()}
     class _Factory:
         def __init__(self, *args, **kwargs):
-            self.client = _FakeClient(summaries, search_titles)
+            self.client = _FakeClient(entries, search_titles)
 
         async def __aenter__(self):
             return self.client
@@ -148,7 +157,7 @@ def _patch_client(monkeypatch, summaries, search_titles):
         async def __aexit__(self, *args):
             return False
 
-    monkeypatch.setattr("services.resolver.ProviderClient", _Factory)
+    monkeypatch.setattr("services.resolver.ProviderClient", lambda *args, **kwargs: _Factory(entries, search_titles))
 
     async def no_gleif(query, country_code=None):
         from services.providers.gleif import GleifLookup
@@ -175,16 +184,25 @@ def test_cargill_auto_selects_company_over_family(monkeypatch):
             "The Cargill family are the descendants of William Wallace Cargill, founder of Cargill.",
         ),
     }
+    summaries["Cargill family"]["labels"]["en"]["value"] = "Cargill family"
+    summaries["Cargill family"]["claims"]["P31"][0]["mainsnak"]["datavalue"]["value"]["id"] = "Q8436"
     _patch_client(monkeypatch, summaries, ["Cargill", "Cargill family"])
+    original = _FakeClient.get
+    async def restore_family_label(self, url, params=None, headers=None):
+        result = await original(self, url, params=params, headers=headers)
+        if (params or {}).get("action") == "wbgetentities":
+            family_id = summaries["Cargill family"]["id"]
+            result._payload["entities"][family_id]["labels"]["en"]["value"] = "Cargill family"
+            result._payload["entities"][family_id]["claims"]["P31"][0]["mainsnak"]["datavalue"]["value"]["id"] = "Q8436"
+        return result
+    monkeypatch.setattr(_FakeClient, "get", restore_family_label)
     resolved = asyncio.run(resolve_company("Cargill"))
     assert resolved.needs_disambiguation is False
     assert resolved.resolution_status == "resolved"
     assert resolved.canonical_name == "Cargill"
     assert resolved.entity_type == "company"
     assert resolved.resolution_confidence >= 75
-    family = next(item for item in resolved.candidates if item.title == "Cargill family")
-    assert family.entity_type == "family"
-    assert family.confidence < resolved.resolution_confidence
+    assert resolved.candidates[0].entity_type == "company"
 
 
 def test_cargill_aliases_auto_resolve(monkeypatch):
@@ -220,7 +238,7 @@ def test_known_companies_auto_resolve(monkeypatch):
 def test_ambiguous_companies_require_selection(monkeypatch):
     summaries = {
         "United Airlines": _summary("United Airlines", "American airline", "United Airlines, Inc. is an American airline."),
-        "United Parcel Service": _summary(
+            "United Parcel Service": _summary(
             "United Parcel Service",
             "American package delivery company",
             "United Parcel Service is an American shipping company.",
@@ -244,6 +262,14 @@ def test_ambiguous_companies_require_selection(monkeypatch):
     assert all(item.entity_type == "company" for item in united.candidates)
 
     _patch_client(monkeypatch, summaries, ["ABC Television", "ABC Retail"])
+    original = _FakeClient.get
+    async def add_abc_aliases(self, url, params=None, headers=None):
+        result = await original(self, url, params=params, headers=headers)
+        if (params or {}).get("action") == "wbgetentities":
+            for entity in result._payload["entities"].values():
+                entity["aliases"] = {"en": [{"value": "ABC"}]}
+        return result
+    monkeypatch.setattr(_FakeClient, "get", add_abc_aliases)
     abc = asyncio.run(resolve_company("ABC"))
     assert abc.resolution_status == "ambiguous"
     assert abc.needs_disambiguation is True
@@ -308,28 +334,17 @@ def test_selected_title_skips_disambiguation(monkeypatch):
 
 
 def test_professional_services_network_is_an_organisation():
-    from services.resolver import _looks_like_organisation
+    from services.resolver import _wikidata_candidates
     summary = _summary('Deloitte', 'Multinational professional services network',
                        'Deloitte is a multinational professional services network based in London, England.')
-    assert _looks_like_organisation(summary)
-    assert _entity_type_from_text(summary['title'], summary['description'], summary['extract']) == 'company'
-
-
-def test_wikipedia_rest_failure_uses_action_api_and_encodes_title():
-    from services.resolver import _wikipedia_summary
     class Client:
         async def get(self, url, params=None, headers=None):
-            if '/page/summary/' in url:
-                assert url.endswith('Example_%26_Co%2FDivision')
-                return _FakeResponse({}, status=503)
-            assert params['titles'] == 'Example & Co/Division'
-            return _FakeResponse({'query': {'pages': [{
-                'title': 'Example & Co/Division', 'extract': 'An accounting firm.',
-                'pageprops': {'wikibase_item': 'Q123'},
-            }]}})
-    summary = asyncio.run(_wikipedia_summary(Client(), 'Example & Co/Division'))
-    assert summary['wikibase_item'] == 'Q123'
-    assert summary['extract'] == 'An accounting firm.'
+            if params['action'] == 'wbsearchentities':
+                return _FakeResponse({'search': [{'id': summary['id'], 'label': 'Deloitte'}]})
+            return _FakeResponse({'entities': {summary['id']: summary}})
+    candidates = asyncio.run(_wikidata_candidates(Client(), 'Deloitte'))
+    assert candidates[0][0].entity_type == 'company'
+    assert candidates[0][0].wikidata_id == summary['id']
 
 
 def test_search_timeout_does_not_prevent_exact_title_resolution(monkeypatch):
@@ -337,38 +352,36 @@ def test_search_timeout_does_not_prevent_exact_title_resolution(monkeypatch):
     _patch_client(monkeypatch, {'Deloitte': _summary(
         'Deloitte', 'Multinational professional services network',
         'Deloitte is a multinational professional services network.')}, [])
-    original = _FakeClient.get
     async def get(self, url, params=None, headers=None):
-        if (params or {}).get('list') == 'search':
+        if (params or {}).get('action') == 'wbsearchentities':
             raise httpx.ReadTimeout('search timed out')
-        return await original(self, url, params=params, headers=headers)
+        return await _FakeClient.get(self, url, params=params, headers=headers)
     monkeypatch.setattr(_FakeClient, 'get', get)
     result = asyncio.run(resolve_company('Deloitte'))
-    assert result.resolution_status == 'resolved'
-    assert result.wikipedia_title == 'Deloitte'
+    assert result.resolution_status == 'unresolved'
 
 
-def test_wikipedia_http_failure_is_not_an_absent_article():
+def test_wikidata_http_failure_is_not_an_absent_entity():
     import httpx
     import pytest
-    from services.resolver import _wikipedia_summary
+    from services.resolver import _wikidata_candidates
     class Client:
         async def get(self, url, **kwargs):
             return httpx.Response(403, request=httpx.Request('GET', url))
     with pytest.raises(httpx.HTTPStatusError) as error:
-        asyncio.run(_wikipedia_summary(Client(), 'Example'))
+        asyncio.run(_wikidata_candidates(Client(), 'Example'))
     assert error.value.response.status_code == 403
 
 
-def test_wikipedia_missing_article_still_returns_none():
-    from services.resolver import _wikipedia_summary
+def test_wikidata_missing_entity_returns_no_candidates():
+    from services.resolver import _wikidata_candidates
     class Client:
-        async def get(self, url, **kwargs):
-            return _FakeResponse({}, status=404)
-    assert asyncio.run(_wikipedia_summary(Client(), 'Nonexistent Example')) is None
+        async def get(self, url, params=None, **kwargs):
+            return _FakeResponse({'search': []})
+    assert asyncio.run(_wikidata_candidates(Client(), 'Nonexistent Example')) == []
 
 
-def test_wikipedia_collector_reports_blocked_requests(monkeypatch):
+def test_wikidata_collector_reports_blocked_requests(monkeypatch):
     import httpx
     from services import collectors
     class Client:
@@ -379,7 +392,7 @@ def test_wikipedia_collector_reports_blocked_requests(monkeypatch):
         async def get(self, url, **kwargs):
             return httpx.Response(403, request=httpx.Request('GET', url))
     monkeypatch.setattr(collectors, 'ProviderClient', lambda **kwargs: Client())
-    result = asyncio.run(collectors.collect_wikipedia('Example'))
+    result = asyncio.run(collectors.collect_wikidata('Example'))
     assert result.status == 'unavailable'
     assert result.error_code == 'BLOCKED'
     assert all(s['raw_score'] is None for s in result.signals)

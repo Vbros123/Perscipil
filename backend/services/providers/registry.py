@@ -14,7 +14,7 @@ PUBLIC_PROVIDERS = (
     {"key": "sec", "name": "SEC EDGAR", "track": "public", "quality": "high", "scored": True, "group": "financial_regulatory", "optional": False},
     {"key": "usaspending", "name": "USASpending", "track": "public", "quality": "high", "scored": True, "group": "government", "optional": False},
     {"key": "census", "name": "Census", "track": "public", "quality": "medium", "scored": False, "group": "industry", "optional": True},
-    {"key": "wikipedia", "name": "Wikipedia", "track": "public", "quality": "low", "scored": True, "group": "public_signals", "optional": False},
+    {"key": "wikidata", "name": "Wikidata", "track": "public", "quality": "low", "scored": True, "group": "public_signals", "optional": False},
     {"key": "news", "name": "DuckDuckGo / Hacker News", "track": "public", "quality": "low", "scored": True, "group": "public_signals", "optional": False},
     {"key": "jobs", "name": "Jobs", "track": "public", "quality": "low", "scored": True, "group": "operating", "optional": True},
 )

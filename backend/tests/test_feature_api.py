@@ -51,7 +51,8 @@ def test_full_authenticated_workspace_flow(api, monkeypatch):
     providers = api.get("/api/providers").json()
     assert providers["effective_data_mode"] == "public"
     assert len(providers["providers"]) >= 9
-    assert any(item["key"] == "wikipedia" for item in providers["providers"])
+    assert any(item["key"] == "wikidata" for item in providers["providers"])
+    assert all(item["key"] != "wikipedia" for item in providers["providers"])
     assert any(item["key"] == "gleif" and item["configured"] is True for item in providers["providers"])
     assert all(item["status"] == "unavailable" for item in providers["providers"] if item["track"] == "licensed")
     assert api.get("/api/cache/stats").status_code == 200
