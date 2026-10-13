@@ -359,27 +359,30 @@ async def _wikipedia_summary(client: httpx.AsyncClient, title: str) -> dict | No
                 return summary
     except (httpx.HTTPError, ValueError):
         pass
-    try:
-        resp = await client.get(
-            "https://en.wikipedia.org/w/api.php",
-            params={"action": "query", "titles": title, "redirects": 1,
-                    "prop": "extracts|pageprops|description", "exintro": 1,
-                    "explaintext": 1, "format": "json", "formatversion": 2},
-            headers=HEADERS,
+    resp = await client.get(
+        "https://en.wikipedia.org/w/api.php",
+        params={"action": "query", "titles": title, "redirects": 1,
+                "prop": "extracts|pageprops|description", "exintro": 1,
+                "explaintext": 1, "format": "json", "formatversion": 2},
+        headers=HEADERS,
+    )
+    if resp.status_code == 404:
+        return None
+    if resp.status_code != 200:
+        raise httpx.HTTPStatusError(
+            "Wikipedia lookup failed",
+            request=httpx.Request("GET", "https://en.wikipedia.org/w/api.php"),
+            response=resp,
         )
-        if resp.status_code != 200:
-            return None
-        pages = resp.json().get("query", {}).get("pages", [])
-        for page in pages:
-            if "missing" in page or not page.get("extract"):
-                continue
-            props = page.get("pageprops", {})
-            return {"title": page.get("title"), "extract": page["extract"],
-                    "description": page.get("description", ""),
-                    "wikibase_item": props.get("wikibase_item"),
-                    "type": "disambiguation" if "disambiguation" in props else "standard"}
-    except (httpx.HTTPError, ValueError, TypeError):
-        pass
+    pages = resp.json().get("query", {}).get("pages", [])
+    for page in pages:
+        if "missing" in page or not page.get("extract"):
+            continue
+        props = page.get("pageprops", {})
+        return {"title": page.get("title"), "extract": page["extract"],
+                "description": page.get("description", ""),
+                "wikibase_item": props.get("wikibase_item"),
+                "type": "disambiguation" if "disambiguation" in props else "standard"}
     return None
 
 
