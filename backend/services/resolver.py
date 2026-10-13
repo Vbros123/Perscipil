@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import re
-from urllib.parse import quote
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -126,48 +125,6 @@ def names_match(left: str, right: str) -> bool:
     return all(token in CORPORATE_QUALIFIERS for token in extra)
 
 
-def _looks_like_organisation(summary: dict) -> bool:
-    description = (summary.get("description") or "").lower()
-    extract = (summary.get("extract") or "").lower()
-    if _entity_type_from_text(summary.get("title") or "", description, extract) in {"family", "person"}:
-        return False
-    if _has_hint(description, ORGANISATION_HINTS):
-        return True
-    return _has_hint(extract[:400], ORGANISATION_HINTS)
-
-
-def _company_type_from_text(text: str) -> str:
-    if _has_hint(text, PUBLIC_HINTS):
-        return "public"
-    if _has_hint(text, PRIVATE_HINTS):
-        return "private"
-    return "unknown"
-
-
-def _founded_year(extract: str) -> int | None:
-    match = re.search(
-        r"(?:founded|established|incorporated)(?:\s+\w+){0,2}\s+in\s+(\d{4})",
-        extract.lower(),
-    )
-    if not match:
-        return None
-    year = int(match.group(1))
-    if 1600 <= year <= datetime.now().year:
-        return year
-    return None
-
-
-def _domain_from_summary(summary: dict) -> str | None:
-    extract = summary.get("extract") or ""
-    match = re.search(r"\b(?:https?://)?(?:www\.)?([a-z0-9-]+\.[a-z]{2,})(?:/[^\s]*)?", extract, re.I)
-    if not match:
-        return None
-    host = match.group(1).lower()
-    if host.endswith(("wikipedia.org", "wikimedia.org")):
-        return None
-    return host
-
-
 def _entity_type_from_text(title: str, description: str, extract: str) -> str:
     blob = f"{title} {description} {extract[:500]}"
     title_l = (title or "").lower()
@@ -200,6 +157,17 @@ def _entity_type_from_wikidata(instance_ids: list[str], fallback: str) -> str:
         if mapped:
             return mapped
     return fallback
+
+
+def _wikidata_entity_type(instance_ids: list[str], label: str, description: str) -> str:
+    if label.lower().endswith(" family") or _has_hint(description, FAMILY_HINTS):
+        return "family"
+    if _has_hint(description, PERSON_HINTS):
+        return "person"
+    mapped = _entity_type_from_wikidata(instance_ids, "")
+    if mapped:
+        return mapped
+    return _entity_type_from_text(label, description, "")
 
 
 def rank_candidate(query: str, candidate: "CompanyCandidate") -> int:
@@ -283,8 +251,8 @@ class ResolvedCompany:
     resolution_confidence: int = 0
     resolution_status: str = "unresolved"
     candidates: list[CompanyCandidate] = field(default_factory=list)
-    wikipedia_title: str | None = None
-    wikipedia_summary: dict[str, Any] | None = None
+    wikidata_id: str | None = None
+    wikidata_entity: dict[str, Any] | None = None
     founded_year: int | None = None
     needs_disambiguation: bool = False
     limited_identification: bool = False
@@ -345,99 +313,83 @@ class ResolvedCompany:
         }
 
 
-async def _wikipedia_summary(client: httpx.AsyncClient, title: str) -> dict | None:
-    # Try both supported representations independently; a search/REST outage
-    # must not erase a usable exact-title article from the Action API.
-    try:
-        resp = await client.get(
-            f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(title.replace(' ', '_'), safe='')}",
-            headers=HEADERS,
-        )
-        if resp.status_code == 200:
-            summary = resp.json()
-            if summary.get("title") and summary.get("extract"):
-                return summary
-    except (httpx.HTTPError, ValueError):
-        pass
-    resp = await client.get(
-        "https://en.wikipedia.org/w/api.php",
-        params={"action": "query", "titles": title, "redirects": 1,
-                "prop": "extracts|pageprops|description", "exintro": 1,
-                "explaintext": 1, "format": "json", "formatversion": 2},
-        headers=HEADERS,
-    )
-    if resp.status_code == 404:
-        return None
-    if resp.status_code != 200:
-        raise httpx.HTTPStatusError(
-            "Wikipedia lookup failed",
-            request=httpx.Request("GET", "https://en.wikipedia.org/w/api.php"),
-            response=resp,
-        )
-    pages = resp.json().get("query", {}).get("pages", [])
-    for page in pages:
-        if "missing" in page or not page.get("extract"):
-            continue
-        props = page.get("pageprops", {})
-        return {"title": page.get("title"), "extract": page["extract"],
-                "description": page.get("description", ""),
-                "wikibase_item": props.get("wikibase_item"),
-                "type": "disambiguation" if "disambiguation" in props else "standard"}
+def _claim_values(entity: dict, property_id: str) -> list[dict[str, Any]]:
+    values = []
+    for claim in (entity.get("claims") or {}).get(property_id, []):
+        value = ((claim.get("mainsnak") or {}).get("datavalue") or {}).get("value")
+        if value is not None:
+            values.append(value)
+    return values
+
+
+def _wikidata_year(entity: dict) -> int | None:
+    for value in _claim_values(entity, "P571"):
+        timestamp = value.get("time") if isinstance(value, dict) else None
+        match = re.match(r"^[+-](\d{4,})-", timestamp or "")
+        if match:
+            year = int(match.group(1))
+            if 1600 <= year <= datetime.now().year:
+                return year
     return None
 
 
-async def _wikidata_instance_ids(client: httpx.AsyncClient, qid: str) -> list[str]:
-    if not qid or not re.fullmatch(r"Q\d+", qid):
-        return []
-    try:
-        resp = await client.get(
-            "https://www.wikidata.org/w/api.php",
-            params={
-                "action": "wbgetentities",
-                "ids": qid,
-                "props": "claims",
-                "format": "json",
-            },
-            headers=HEADERS,
+async def _wikidata_candidates(client: httpx.AsyncClient, name: str, limit: int = 8) -> list[tuple[CompanyCandidate, dict]]:
+    """Find structured Wikidata items by name and load their verified claims."""
+    response = await client.get(
+        "https://www.wikidata.org/w/api.php",
+        params={"action": "wbsearchentities", "search": name, "language": "en",
+                "uselang": "en", "type": "item", "limit": limit, "format": "json"},
+        headers=HEADERS,
+    )
+    if response.status_code != 200:
+        raise httpx.HTTPStatusError(
+            "Wikidata search failed", request=httpx.Request("GET", "https://www.wikidata.org/w/api.php"),
+            response=response,
         )
-        if resp.status_code != 200:
-            return []
-        claims = (((resp.json().get("entities") or {}).get(qid) or {}).get("claims") or {}).get("P31") or []
-        ids: list[str] = []
-        for claim in claims:
-            value = (((claim.get("mainsnak") or {}).get("datavalue") or {}).get("value") or {})
-            instance_id = value.get("id")
-            if instance_id:
-                ids.append(instance_id)
-        return ids
-    except Exception:
+    hits = response.json().get("search", [])
+    ids = [hit.get("id") for hit in hits if re.fullmatch(r"Q\d+", hit.get("id") or "")]
+    if not ids:
         return []
-
-
-def _candidate_from_summary(summary: dict, entity_type: str, wikidata_id: str | None = None) -> CompanyCandidate | None:
-    if summary.get("type") == "disambiguation":
-        return None
-    title = summary.get("title") or ""
-    if not title:
-        return None
-    extract = summary.get("extract") or ""
-    description = summary.get("description") or ""
-    url = (summary.get("content_urls") or {}).get("desktop", {}).get("page") or (
-        f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}"
+    entities_response = await client.get(
+        "https://www.wikidata.org/w/api.php",
+        params={"action": "wbgetentities", "ids": "|".join(ids), "props": "labels|descriptions|aliases|claims",
+                "languages": "en", "format": "json"},
+        headers=HEADERS,
     )
-    return CompanyCandidate(
-        title=title,
-        description=description,
-        extract=extract,
-        url=url,
-        canonical_key=canonical_key(title),
-        company_type=_company_type_from_text(f"{description} {extract}"),
-        entity_type=entity_type,
-        founded_year=_founded_year(extract),
-        domain=_domain_from_summary(summary),
-        wikidata_id=wikidata_id,
-        industry=description or None,
-    )
+    if entities_response.status_code != 200:
+        raise httpx.HTTPStatusError(
+            "Wikidata entity lookup failed", request=httpx.Request("GET", "https://www.wikidata.org/w/api.php"),
+            response=entities_response,
+        )
+    entities = entities_response.json().get("entities", {})
+    candidates: list[tuple[CompanyCandidate, dict]] = []
+    for hit in hits:
+        qid = hit.get("id")
+        entity = entities.get(qid, {})
+        if not entity or entity.get("missing") is not None:
+            continue
+        label = (entity.get("labels", {}).get("en") or {}).get("value") or hit.get("label") or ""
+        aliases = [alias.get("value", "") for alias in entity.get("aliases", {}).get("en", [])]
+        if not label or not any(names_match(name, candidate) for candidate in [label, *aliases]):
+            continue
+        description = (entity.get("descriptions", {}).get("en") or {}).get("value", "")
+        instance_ids = [value.get("id") for value in _claim_values(entity, "P31") if isinstance(value, dict) and value.get("id")]
+        entity_type = _wikidata_entity_type(instance_ids, label, description)
+        official_sites = [value for value in _claim_values(entity, "P856") if isinstance(value, str)]
+        domain = None
+        if official_sites:
+            from urllib.parse import urlparse
+            domain = (urlparse(official_sites[0]).hostname or "").removeprefix("www.").lower() or None
+        founded_year = _wikidata_year(entity)
+        candidate = CompanyCandidate(
+            title=label, description=description, extract=description,
+            url=f"https://www.wikidata.org/wiki/{qid}", canonical_key=canonical_key(label),
+            entity_type=entity_type, founded_year=founded_year, domain=domain,
+            wikidata_id=qid, wikidata_type=entity_type, industry=description or None,
+        )
+        candidate.confidence = rank_candidate(name, candidate)
+        candidates.append((candidate, entity))
+    return candidates
 
 
 def _unresolved(name: str, key: str, candidates: list[CompanyCandidate] | None = None) -> ResolvedCompany:
@@ -475,43 +427,16 @@ def _resolved_from_candidate(
         headquarters=chosen.location,
         company_type=chosen.company_type,
         entity_type=chosen.entity_type,
-        identifiers={
-            "wikipedia": chosen.title,
-            **({"wikidata": chosen.wikidata_id} if chosen.wikidata_id else {}),
-        },
+        identifiers={"wikidata": chosen.wikidata_id} if chosen.wikidata_id else {},
         resolution_confidence=chosen.confidence,
         resolution_status="resolved",
         candidates=all_candidates,
-        wikipedia_title=chosen.title,
-        wikipedia_summary=summary,
+        wikidata_id=chosen.wikidata_id,
+        wikidata_entity=summary,
         founded_year=chosen.founded_year,
         needs_disambiguation=False,
         limited_identification=False,
     )
-
-
-async def _enrich_candidate(client: httpx.AsyncClient, summary: dict) -> CompanyCandidate | None:
-    if summary.get("type") == "disambiguation":
-        return None
-    title = summary.get("title") or ""
-    description = summary.get("description") or ""
-    extract = summary.get("extract") or ""
-    text_type = _entity_type_from_text(title, description, extract)
-    qid = summary.get("wikibase_item")
-    instance_ids = await _wikidata_instance_ids(client, qid) if qid else []
-    entity_type = _entity_type_from_wikidata(instance_ids, text_type)
-    candidate = _candidate_from_summary(summary, entity_type, qid)
-    if candidate is None:
-        return None
-    candidate.wikidata_type = _entity_type_from_wikidata(instance_ids, "") or None
-    return candidate
-
-
-def _discovery_related(query: str, title: str) -> bool:
-    q, t = canonical_key(query), canonical_key(title)
-    if not q or not t:
-        return False
-    return q == t or t.startswith(q + " ") or q.startswith(t + " ")
 
 
 def _apply_gleif(resolved: ResolvedCompany, lookup) -> ResolvedCompany:
@@ -612,65 +537,18 @@ async def _resolve_from_public_sources(name: str, key: str, selected_title: str 
     try:
         async with ProviderClient(event_hooks=HOOKS, timeout=settings.HTTP_TIMEOUT) as client:
             if selected_title:
-                summary = await _wikipedia_summary(client, selected_title)
-                if summary:
-                    candidate = await _enrich_candidate(client, summary)
-                    if candidate is not None:
-                        candidate.confidence = max(candidate.confidence, rank_candidate(name, candidate), 80)
-                        resolved = _resolved_from_candidate(name, key, candidate, summary, [candidate])
-                        logger.info(
-                            "[Resolver] Query=%r selected=%r entity_type=%s confidence=%s status=resolved",
-                            name, selected_title, candidate.entity_type, candidate.confidence,
-                        )
+                matches = await _wikidata_candidates(client, selected_title, limit=10)
+                matching = [(candidate, entity) for candidate, entity in matches if names_match(name, candidate.title)]
+                if matching:
+                    candidate, entity = max(matching, key=lambda item: item[0].confidence)
+                    if candidate.entity_type in SCOREABLE_TYPES and candidate.confidence >= 70:
+                        resolved = _resolved_from_candidate(name, key, candidate, entity, [item[0] for item in matching])
+                        logger.info("[Resolver] Query=%r selected=%r entity_type=%s confidence=%s status=resolved",
+                                    name, selected_title, candidate.entity_type, candidate.confidence)
                         return resolved
                 logger.info("[Resolver] Query=%r selected=%r status=unresolved", name, selected_title)
                 return _unresolved(name, key)
-
-            titles: list[str] = [name]
-            try:
-                search = await client.get(
-                    "https://en.wikipedia.org/w/api.php",
-                    params={
-                        "action": "query",
-                        "list": "search",
-                        "srsearch": f"{name} company",
-                        "srlimit": 8,
-                        "format": "json",
-                    },
-                    headers=HEADERS,
-                )
-                if search.status_code == 200:
-                    for hit in search.json().get("query", {}).get("search", []):
-                        title = hit.get("title")
-                        if title and title not in titles:
-                            titles.append(title)
-
-            except (httpx.HTTPError, ValueError):
-                logger.info("[Resolver] Search unavailable; trying exact title")
-
-            discovered: dict[str, tuple[CompanyCandidate, dict]] = {}
-            for title in titles:
-                summary = await _wikipedia_summary(client, title)
-                if not summary:
-                    continue
-                candidate = await _enrich_candidate(client, summary)
-                if candidate is None:
-                    continue
-                if not _discovery_related(name, candidate.title):
-                    continue
-                candidate.confidence = rank_candidate(name, candidate)
-                existing = discovered.get(candidate.canonical_key)
-                if existing is not None:
-                    prev = existing[0]
-                    prev_ok = prev.entity_type in SCOREABLE_TYPES
-                    new_ok = candidate.entity_type in SCOREABLE_TYPES
-                    if new_ok == prev_ok and candidate.confidence <= prev.confidence:
-                        continue
-                    if prev_ok and not new_ok:
-                        continue
-                discovered[candidate.canonical_key] = (candidate, summary)
-
-            ranked = sorted(discovered.values(), key=lambda item: item[0].confidence, reverse=True)
+            ranked = sorted(await _wikidata_candidates(client, name), key=lambda item: item[0].confidence, reverse=True)
             candidates = [item[0] for item in ranked]
 
             if not ranked:
@@ -693,11 +571,21 @@ async def _resolve_from_public_sources(name: str, key: str, selected_title: str 
             best = scoreable[0]
             second = scoreable[1] if len(scoreable) > 1 else None
             margin = best.confidence - (second.confidence if second else 0)
-            auto = (second is None and best.confidence >= 70) or (best.confidence >= AUTO_SELECT_THRESHOLD and margin >= MIN_MARGIN)
+            exact_name = canonical_key(name) == best.canonical_key
+            if second is None and not exact_name:
+                choices = [item for item in candidates if item.entity_type in SCOREABLE_TYPES or item.entity_type == "brand"]
+                return ResolvedCompany(
+                    query_name=name, canonical_key=key, canonical_name=name.strip(), legal_name=name.strip(),
+                    aliases=[], resolution_confidence=best.confidence, resolution_status="ambiguous",
+                    candidates=choices, needs_disambiguation=True, limited_identification=True,
+                    entity_type=best.entity_type,
+                )
+            auto = ((second is None and best.confidence >= 70) or
+                    (best.confidence >= AUTO_SELECT_THRESHOLD and margin >= MIN_MARGIN)) and exact_name
 
             if auto:
-                summary = next(item[1] for item in ranked if item[0].title == best.title)
-                resolved = _resolved_from_candidate(name, key, best, summary, candidates)
+                entity = next(item[1] for item in ranked if item[0].title == best.title)
+                resolved = _resolved_from_candidate(name, key, best, entity, candidates)
                 logger.info(
                     "[Resolver] Query=%r best=%r entity_type=%s confidence=%s status=resolved",
                     name, best.title, best.entity_type, best.confidence,

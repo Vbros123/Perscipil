@@ -110,8 +110,8 @@ def test_optional_census_failure_is_not_a_system_failure(monkeypatch):
     async def boom(_name, resolved=None):
         raise RuntimeError("down")
 
-    async def wiki(_name, resolved=None):
-        return CollectorResult(source="wikipedia", status="live", signals=[
+    async def wikidata(_name, resolved=None):
+        return CollectorResult(source="wikidata", status="live", signals=[
             _signal("Brand Legitimacy & Web Presence", 56, "identity"),
         ])
 
@@ -132,7 +132,7 @@ def test_optional_census_failure_is_not_a_system_failure(monkeypatch):
     async def no_licensed(_identity):
         return [], {"gateway_enabled": False}
 
-    monkeypatch.setattr("services.collectors.collect_wikipedia", wiki)
+    monkeypatch.setattr("services.collectors.collect_wikidata", wikidata)
     monkeypatch.setattr("services.collectors.collect_news_sentiment", news)
     monkeypatch.setattr("services.collectors.collect_sec_edgar", sec)
     monkeypatch.setattr("services.collectors.collect_usa_spending", awards)

@@ -72,7 +72,7 @@ def test_all_collectors_failed_report_is_honest(monkeypatch):
     async def no_licensed(_identity):
         return [], {"gateway_enabled": False}
 
-    monkeypatch.setattr("services.collectors.collect_wikipedia", boom)
+    monkeypatch.setattr("services.collectors.collect_wikidata", boom)
     monkeypatch.setattr("services.collectors.collect_job_postings", boom)
     monkeypatch.setattr("services.collectors.collect_news_sentiment", boom)
     monkeypatch.setattr("services.collectors.collect_sec_edgar", boom)
@@ -132,7 +132,7 @@ def test_partial_collector_timeout_does_not_stop_others(monkeypatch):
     async def no_licensed(_identity):
         return [], {"gateway_enabled": False}
 
-    monkeypatch.setattr("services.collectors.collect_wikipedia", boom)
+    monkeypatch.setattr("services.collectors.collect_wikidata", boom)
     monkeypatch.setattr("services.collectors.collect_job_postings", jobs)
     monkeypatch.setattr("services.collectors.collect_news_sentiment", news)
     monkeypatch.setattr("services.collectors.collect_sec_edgar", sec)
@@ -143,7 +143,7 @@ def test_partial_collector_timeout_does_not_stop_others(monkeypatch):
 
     collection = asyncio.run(collect_all(CompanyIdentity(legal_name="Example Co")))
     sources = {item.source: item.status for item in collection["collector_results"]}
-    assert sources["wikipedia"] == "unavailable"
+    assert sources["wikidata"] == "unavailable"
     assert sources["jobs"] == "live"
     result = compute_score(collection["signals"], model_release_stage="shadow")
     assert result["private_score"] is None
@@ -195,7 +195,7 @@ def test_score_company_all_timeouts_stays_unrated(monkeypatch):
         )
 
     monkeypatch.setattr("services.reports.resolve_company", fake_resolve)
-    monkeypatch.setattr("services.collectors.collect_wikipedia", boom)
+    monkeypatch.setattr("services.collectors.collect_wikidata", boom)
     monkeypatch.setattr("services.collectors.collect_job_postings", boom)
     monkeypatch.setattr("services.collectors.collect_news_sentiment", boom)
     monkeypatch.setattr("services.collectors.collect_sec_edgar", boom)

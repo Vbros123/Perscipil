@@ -117,7 +117,7 @@ SIGNAL_SPECS: dict[str, dict[str, Any]] = {
     "Brand Legitimacy & Web Presence": {
         "weight": 0.08,
         "category": "identity",
-        "providers": ["wikipedia"],
+        "providers": ["wikidata"],
         "max_age_days": 365,
         "track": "public",
         "role": "supporting",
@@ -127,11 +127,11 @@ SIGNAL_SPECS: dict[str, dict[str, Any]] = {
     "Company Stability": {
         "weight": 0.08,
         "category": "operational",
-        "providers": ["wikipedia"],
+        "providers": ["wikidata"],
         "max_age_days": 365,
         "track": "public",
         "role": "supporting",
-        "quality_hint": "medium",
+        "quality_hint": "low",
         "scope": "company",
     },
     "Job Posting Velocity": {

@@ -17,12 +17,16 @@ from core.provider_budget import HOOKS, ProviderClient
 from core.config import get_settings
 from services.evidence import CompanyIdentity
 from services.licensed_data import collect_licensed_signals
-from services.resolver import (
-    _founded_year,
-    _looks_like_organisation,
-    canonical_key,
-    names_match,
-)
+from services.resolver import _entity_type_from_text, canonical_key, names_match
+
+
+def _looks_like_organisation(summary: dict) -> bool:
+    description = ((summary.get("descriptions") or {}).get("en") or {}).get("value", summary.get("description", ""))
+    label = ((summary.get("labels") or {}).get("en") or {}).get("value", summary.get("title", ""))
+    extract = summary.get("extract", "")
+    if _entity_type_from_text(label, description, "") in {"family", "person"}:
+        return False
+    return bool(_entity_type_from_text(label, description, extract) in {"company", "parent_company", "subsidiary"})
 
 settings = get_settings()
 
@@ -42,7 +46,7 @@ SOURCE_META = {
     "sec": {"label": "SEC EDGAR", "group": "financial_regulatory", "groupLabel": "FINANCIAL & REGULATORY"},
     "usaspending": {"label": "USASpending", "group": "government", "groupLabel": "GOVERNMENT ACTIVITY"},
     "census": {"label": "Census", "group": "industry", "groupLabel": "INDUSTRY CONTEXT"},
-    "wikipedia": {"label": "Wikipedia", "group": "public_signals", "groupLabel": "PUBLIC SIGNALS"},
+    "wikidata": {"label": "Wikidata", "group": "public_signals", "groupLabel": "PUBLIC SIGNALS"},
     "news": {"label": "DuckDuckGo / Hacker News", "group": "public_signals", "groupLabel": "PUBLIC SIGNALS"},
     "jobs": {"label": "Jobs", "group": "operating", "groupLabel": "OPERATING SIGNALS"},
 }
@@ -477,73 +481,66 @@ async def collect_sec_edgar(name: str, resolved=None) -> CollectorResult:
         )
 
 
-def _wikipedia_signals_from_summary(name: str, summary: dict) -> list[dict[str, Any]] | None:
-    if summary.get("type") == "disambiguation":
+def _wikidata_signals(name: str, entity: dict, qid: str) -> list[dict[str, Any]] | None:
+    from services.resolver import _wikidata_year
+    labels = entity.get("labels") or {}
+    resolved_title = (labels.get("en") or {}).get("value") or ""
+    if not resolved_title or not names_match(name, resolved_title):
         return None
-    if not _looks_like_organisation(summary):
-        return None
-    resolved_title = summary.get("title") or ""
-    if not names_match(name, resolved_title):
-        return None
-    extract = summary.get("extract") or ""
-    founded = _founded_year(extract)
-    age_note = ""
-    if founded:
-        age_note = f" Founded {founded} ({datetime.now().year - founded} years ago)."
-    wiki_url = f"https://en.wikipedia.org/wiki/{resolved_title.replace(' ', '_')}"
+    founded = _wikidata_year(entity)
+    url = f"https://www.wikidata.org/wiki/{qid}"
     digital = _public_signal(
         name="Brand Legitimacy & Web Presence",
         icon="🌐",
         category="identity",
-        display=f"Wikipedia article: {resolved_title}{age_note}",
-        raw_score=56.0,
+        display=f"Wikidata organization record: {resolved_title}",
+        raw_score=50.0,
         status="live",
-        source_url=wiki_url,
+        source_url=url,
         evidence_quality="low",
         insight=(
-            f"Matched the Wikipedia article \"{resolved_title}\""
-            f"{' — ' + summary['description'] if summary.get('description') else ''}."
-            f"{age_note} Article presence confirms a public identity page; it is not "
-            "a measure of revenue, customers, or financial health."
+            f"Matched Wikidata organization entity {resolved_title} ({qid}). "
+            "This public knowledge-base record supports identity only; it does not measure revenue, "
+            "customers, or financial health."
         ),
-        extra={"matched_entity": resolved_title},
+        extra={"matched_entity": resolved_title, "wikidata_id": qid},
     )
     if founded:
         stability = _public_signal(
             name="Company Stability",
             icon="🏢",
             category="operational",
-            display=f"Operating age about {datetime.now().year - founded} years (founded {founded})",
+            display=f"Wikidata founding date: {founded}",
             raw_score=_stability_score(founded),
             status="live",
-            source_url=wiki_url,
+            source_url=url,
             insight=(
-                f"Wikipedia reports a founding year of {founded}. Age is a supporting stability band, "
-                "not proof of creditworthiness or commercial traction."
+                f"Wikidata lists a founding date in {founded}. This is a crowd-sourced reference fact, "
+                "not independently verified evidence of operating continuity or creditworthiness."
             ),
-            extra={"matched_entity": resolved_title, "founded_year": founded},
-            evidence_quality="medium",
+            extra={"matched_entity": resolved_title, "founded_year": founded, "wikidata_id": qid},
+            evidence_quality="low",
         )
     else:
         stability = _unavailable_signal(
             "Company Stability",
             "🏢",
             "operational",
-            wiki_url,
-            "No founding year was found on the matched Wikipedia article, so no age score was inferred.",
+            url,
+            "No founding date was found in the matched Wikidata item, so no age score was inferred.",
         )
     return [digital, stability]
 
 
-def _no_wikipedia_signals(name: str, reason: str) -> list[dict[str, Any]]:
-    search_url = "https://en.wikipedia.org/wiki/Special:Search?search=" + name.replace(" ", "+")
+def _no_wikidata_signals(name: str, reason: str) -> list[dict[str, Any]]:
+    search_url = "https://www.wikidata.org/w/index.php?search=" + name.replace(" ", "+")
     return [
         _unavailable_signal(
             "Brand Legitimacy & Web Presence",
             "🌐",
             "identity",
             search_url,
-            f"No Wikipedia article was confidently resolved to this company ({reason}). "
+            f"No Wikidata organization item was confidently resolved to this company ({reason}). "
             "Absence of an article is not evidence about the company, so no value was inferred.",
         ),
         _unavailable_signal(
@@ -556,55 +553,28 @@ def _no_wikipedia_signals(name: str, reason: str) -> list[dict[str, Any]]:
     ]
 
 
-async def _wikipedia_summary(client: httpx.AsyncClient, title: str) -> dict | None:
-    from services.resolver import _wikipedia_summary as fetch_summary
-    return await fetch_summary(client, title)
-
-
-async def collect_wikipedia(name: str, resolved=None) -> CollectorResult:
-    """Resolve the company's Wikipedia article as a live digital-presence signal."""
-    if getattr(resolved, "wikipedia_summary", None):
-        signals = _wikipedia_signals_from_summary(name, resolved.wikipedia_summary)
+async def collect_wikidata(name: str, resolved=None) -> CollectorResult:
+    """Collect structured public identity and founding-date facts from Wikidata."""
+    entity = getattr(resolved, "wikidata_entity", None)
+    qid = getattr(resolved, "wikidata_id", None)
+    if entity and qid:
+        signals = _wikidata_signals(name, entity, qid)
         if signals:
-            return _result("wikipedia", signals)
+            return _result("wikidata", signals)
 
     requested = canonical_key(name)
     if not requested:
-        return _result("wikipedia", _no_wikipedia_signals(name, "no searchable company name was provided"))
+        return _result("wikidata", _no_wikidata_signals(name, "no searchable company name was provided"))
     try:
         async with ProviderClient(event_hooks=HOOKS, timeout=_http_timeout()) as client:
-            candidates: list[str] = [name]
-            try:
-                search = await client.get(
-                    "https://en.wikipedia.org/w/api.php",
-                    params={
-                        "action": "query",
-                        "list": "search",
-                        "srsearch": f"{name} company",
-                        "srlimit": 5,
-                        "format": "json",
-                    },
-                    headers=HEADERS,
-                )
-                if search.status_code == 200:
-                    for hit in search.json().get("query", {}).get("search", []):
-                        title = hit.get("title")
-                        if title and title not in candidates:
-                            candidates.append(title)
-
-            except (httpx.HTTPError, ValueError):
-                pass  # Exact-title lookup is independent of search availability.
-
-            for title in candidates:
-                summary = await _wikipedia_summary(client, title)
-                if not summary:
-                    continue
-                signals = _wikipedia_signals_from_summary(name, summary)
+            from services.resolver import _wikidata_candidates
+            for candidate, item in await _wikidata_candidates(client, name, limit=8):
+                signals = _wikidata_signals(name, item, candidate.wikidata_id or "")
                 if signals:
-                    return _result("wikipedia", signals)
-            return _result("wikipedia", _no_wikipedia_signals(name, "no candidate article resolved to this organisation"))
+                    return _result("wikidata", signals)
+            return _result("wikidata", _no_wikidata_signals(name, "no candidate item resolved to this organization"))
     except Exception as exc:
-        return _result("wikipedia", _no_wikipedia_signals(name, "wikipedia lookup failed"), error=_error_code(exc), error_code=_error_code(exc))
+        return _result("wikidata", _no_wikidata_signals(name, "Wikidata lookup failed"), error=_error_code(exc), error_code=_error_code(exc))
 
 
 async def collect_news_sentiment(name: str, resolved=None) -> CollectorResult:
@@ -923,9 +893,9 @@ async def collect_usa_spending(name: str, resolved=None) -> CollectorResult:
 
 FALLBACK_SIGNALS = {
     "sec": [("SEC Financial Evidence", "📋", "financial", "https://data.sec.gov")],
-    "wikipedia": [
-        ("Brand Legitimacy & Web Presence", "🌐", "identity", "https://en.wikipedia.org"),
-        ("Company Stability", "🏢", "operational", "https://en.wikipedia.org"),
+    "wikidata": [
+        ("Brand Legitimacy & Web Presence", "🌐", "identity", "https://www.wikidata.org"),
+        ("Company Stability", "🏢", "operational", "https://www.wikidata.org"),
     ],
     "news": [("News & Media Sentiment", "📰", "sentiment", "https://newsapi.org")],
     "jobs": [("Job Posting Velocity", "💼", "operational", "https://www.indeed.com")],
@@ -1052,9 +1022,9 @@ async def collect_census(name: str, resolved=None) -> CollectorResult:
 
         industry = getattr(resolved, "industry", None) if resolved is not None else None
         description = None
-        summary = getattr(resolved, "wikipedia_summary", None) if resolved is not None else None
-        if isinstance(summary, dict):
-            description = summary.get("description") or summary.get("extract")
+        entity = getattr(resolved, "wikidata_entity", None) if resolved is not None else None
+        if isinstance(entity, dict):
+            description = ((entity.get("descriptions") or {}).get("en") or {}).get("value")
         lookup = await lookup_census(name, industry=industry, description=description)
         if lookup.status == "unavailable" and lookup.error_code == "NOT_CONFIGURED":
             return _result(
@@ -1169,7 +1139,7 @@ async def collect_all(identity: CompanyIdentity | str, resolved=None) -> dict:
 
     named = [
         ("sec", collect_sec_edgar(company_name, resolved)),
-        ("wikipedia", collect_wikipedia(company_name, resolved)),
+        ("wikidata", collect_wikidata(company_name, resolved)),
         ("news", collect_news_sentiment(company_name, resolved)),
         ("jobs", collect_job_postings(company_name, resolved)),
         ("usaspending", collect_usa_spending(company_name, resolved)),

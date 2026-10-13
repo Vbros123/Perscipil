@@ -206,7 +206,7 @@ async def score_company(
     # Availability and why data is absent are separate dimensions.
     source_states = {item.source: item for item in collection.get("collector_results") or []}
     source_for_signal = {
-        "Brand Legitimacy & Web Presence": "wikipedia", "Company Stability": "wikipedia",
+        "Brand Legitimacy & Web Presence": "wikidata", "Company Stability": "wikidata",
         "Job Posting Velocity": "jobs", "News & Media Sentiment": "news",
         "Industry Context": "census", "SEC Financial Evidence": "sec",
         "Government Contract Awards": "usaspending", "Legal Entity Identity": "gleif",

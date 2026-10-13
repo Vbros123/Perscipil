@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     SESSION_COOKIE_NAME: str = "privatelens_session"
     SECURITY_CONTACT: str | None = None
     SECURITY_EXPIRES: str | None = None
-    PUBLIC_DATA_USER_AGENT: str = f"{NAME}/4.0"
+    PUBLIC_DATA_USER_AGENT: str = f"{NAME}/4.0 (https://github.com/Vbros123/Perscipil)"
     RATE_LIMIT_BACKEND: Literal["memory", "database"] = "memory"
     JWT_ISSUER: str = "privatelens-api"
     JWT_AUDIENCE: str = "privatelens-dashboard"

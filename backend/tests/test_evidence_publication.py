@@ -35,7 +35,7 @@ def test_missing_causes_are_distinct_and_do_not_manufacture_scores(monkeypatch):
                             absent('Brand Legitimacy & Web Presence'), absent('Company Stability')],
                 'evidence': {}, 'collector_results': [
                     CollectorResult(source='census', status='unavailable', error_code='NOT_CONFIGURED'),
-                    CollectorResult(source='wikipedia', status='unavailable', error_code='TIMEOUT'),
+                    CollectorResult(source='wikidata', status='unavailable', error_code='TIMEOUT'),
                 ]}
     monkeypatch.setattr(reports, 'resolve_company', resolve)
     monkeypatch.setattr(reports, 'collect_all', collect)

@@ -132,7 +132,7 @@ def test_public_mode_does_not_invent_licensed_scores():
 
 def test_collector_crash_still_builds_a_report(monkeypatch):
     async def boom(_name, resolved=None):
-        raise RuntimeError("wikipedia down")
+        raise RuntimeError("wikidata down")
 
     async def jobs(_name, resolved=None):
         return CollectorResult(source="jobs", status="live", signals=[
@@ -165,7 +165,7 @@ def test_collector_crash_still_builds_a_report(monkeypatch):
     async def census(_name, resolved=None):
         return CollectorResult(source="census", status="unavailable", optional=True, signals=[])
 
-    monkeypatch.setattr("services.collectors.collect_wikipedia", boom)
+    monkeypatch.setattr("services.collectors.collect_wikidata", boom)
     monkeypatch.setattr("services.collectors.collect_job_postings", jobs)
     monkeypatch.setattr("services.collectors.collect_news_sentiment", news)
     monkeypatch.setattr("services.collectors.collect_sec_edgar", sec)
