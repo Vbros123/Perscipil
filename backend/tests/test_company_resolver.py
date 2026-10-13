@@ -346,3 +346,40 @@ def test_search_timeout_does_not_prevent_exact_title_resolution(monkeypatch):
     result = asyncio.run(resolve_company('Deloitte'))
     assert result.resolution_status == 'resolved'
     assert result.wikipedia_title == 'Deloitte'
+
+
+def test_wikipedia_http_failure_is_not_an_absent_article():
+    import httpx
+    import pytest
+    from services.resolver import _wikipedia_summary
+    class Client:
+        async def get(self, url, **kwargs):
+            return httpx.Response(403, request=httpx.Request('GET', url))
+    with pytest.raises(httpx.HTTPStatusError) as error:
+        asyncio.run(_wikipedia_summary(Client(), 'Example'))
+    assert error.value.response.status_code == 403
+
+
+def test_wikipedia_missing_article_still_returns_none():
+    from services.resolver import _wikipedia_summary
+    class Client:
+        async def get(self, url, **kwargs):
+            return _FakeResponse({}, status=404)
+    assert asyncio.run(_wikipedia_summary(Client(), 'Nonexistent Example')) is None
+
+
+def test_wikipedia_collector_reports_blocked_requests(monkeypatch):
+    import httpx
+    from services import collectors
+    class Client:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *args):
+            return False
+        async def get(self, url, **kwargs):
+            return httpx.Response(403, request=httpx.Request('GET', url))
+    monkeypatch.setattr(collectors, 'ProviderClient', lambda **kwargs: Client())
+    result = asyncio.run(collectors.collect_wikipedia('Example'))
+    assert result.status == 'unavailable'
+    assert result.error_code == 'BLOCKED'
+    assert all(s['raw_score'] is None for s in result.signals)
