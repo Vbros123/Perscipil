@@ -10,7 +10,10 @@ permissions:
 
 jobs:
   backup:
+    if: github.ref == 'refs/heads/main'
+    environment: PRODUCTION_DATABASE_URL
     runs-on: ubuntu-latest
+    container: postgres:18-bookworm
     timeout-minutes: 10
     env:
       DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
@@ -22,8 +25,6 @@ jobs:
         run: |
           test -n "$DATABASE_URL" || (echo "PRODUCTION_DATABASE_URL secret is missing" >&2; exit 1)
           test -n "$BACKUP_ENCRYPTION_KEY" || (echo "BACKUP_ENCRYPTION_KEY secret is missing" >&2; exit 1)
-      - name: Install Postgres client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Create and encrypt backup
         run: |
           ./ops/backup_postgres.sh
@@ -33,6 +34,21 @@ jobs:
             -in "$dump_file" -out "$dump_file.enc" -pass env:BACKUP_ENCRYPTION_KEY
           sha256sum "$dump_file.enc" > "$dump_file.enc.sha256"
           rm "$dump_file" "$dump_file.sha256"
+      - name: Verify encrypted backup restores into isolated Postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          enc="$(find "$BACKUP_DIR" -name '*.dump.enc' -print -quit)"
+          sha256sum -c "$enc.sha256"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$enc" -out /tmp/restore.dump -pass env:BACKUP_ENCRYPTION_KEY
+          dbdir="$(mktemp -d)"
+          chown postgres "$dbdir"
+          gosu postgres initdb -D "$dbdir" >/dev/null
+          gosu postgres pg_ctl -D "$dbdir" -o "-k /tmp -c listen_addresses=''" -w start >/dev/null
+          trap 'gosu postgres pg_ctl -D "$dbdir" -m fast stop >/dev/null; rm -rf "$dbdir" /tmp/restore.dump' EXIT
+          pg_restore -h /tmp -U postgres -d postgres --no-owner --no-acl --exit-on-error /tmp/restore.dump
+          psql -h /tmp -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'SELECT version_num FROM alembic_version' -c 'SELECT count(*) AS restored_reports FROM company_reports'
       - name: Upload encrypted artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
