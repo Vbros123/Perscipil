@@ -50,7 +50,7 @@ jobs:
           pg_restore -h /tmp -U postgres -d postgres --no-owner --no-acl --exit-on-error /tmp/restore.dump
           psql -h /tmp -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'SELECT version_num FROM alembic_version' -c 'SELECT count(*) AS restored_reports FROM company_reports'
       - name: Upload encrypted artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: privatelens-postgres-${{ github.run_id }}
           path: /tmp/privatelens-backup/*.enc*
