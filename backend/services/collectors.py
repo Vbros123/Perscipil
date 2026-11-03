@@ -1117,7 +1117,7 @@ async def collect_census(name: str, resolved=None) -> CollectorResult:
         if ctx.establishments is not None:
             insight += f" show {ctx.establishments:,} establishments"
         if ctx.employment is not None:
-            insight += f" and {ctx.employment:,} employees"
+            insight += f". Total employment across this U.S. industry: {ctx.employment:,}"
         if ctx.annual_payroll is not None:
             insight += f", with annual payroll of ${ctx.annual_payroll:,} (thousands of dollars as published)"
         insight += (

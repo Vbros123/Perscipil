@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 from core.provider_budget import ProviderClient, HOOKS
 
+from services.company_details import company_details
 from core.config import get_settings
 
 logger = logging.getLogger("privatelens.resolver")
@@ -251,6 +252,7 @@ class CompanyCandidate:
     wikidata_type: str | None = None
     industry: str | None = None
     location: str | None = None
+    details: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -290,6 +292,7 @@ class ResolvedCompany:
     limited_identification: bool = False
     gleif: dict[str, Any] | None = None
     sec: dict[str, Any] | None = None
+    details: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         gleif = self.gleif or {}
@@ -297,6 +300,7 @@ class ResolvedCompany:
         sec = self.sec or {}
         sec_selected = sec.get("selected") if isinstance(sec.get("selected"), dict) else {}
         return {
+            "details": self.details,
             "name": self.legal_name,
             "canonicalName": self.canonical_name,
             "legalName": selected.get("legalName") or self.legal_name,
@@ -386,9 +390,9 @@ async def _wikipedia_summary(client: httpx.AsyncClient, title: str) -> dict | No
     return None
 
 
-async def _wikidata_instance_ids(client: httpx.AsyncClient, qid: str) -> list[str]:
+async def _wikidata_claims(client: httpx.AsyncClient, qid: str) -> dict:
     if not qid or not re.fullmatch(r"Q\d+", qid):
-        return []
+        return {}
     try:
         resp = await client.get(
             "https://www.wikidata.org/w/api.php",
@@ -401,17 +405,10 @@ async def _wikidata_instance_ids(client: httpx.AsyncClient, qid: str) -> list[st
             headers=HEADERS,
         )
         if resp.status_code != 200:
-            return []
-        claims = (((resp.json().get("entities") or {}).get(qid) or {}).get("claims") or {}).get("P31") or []
-        ids: list[str] = []
-        for claim in claims:
-            value = (((claim.get("mainsnak") or {}).get("datavalue") or {}).get("value") or {})
-            instance_id = value.get("id")
-            if instance_id:
-                ids.append(instance_id)
-        return ids
+            return {}
+        return ((resp.json().get("entities") or {}).get(qid) or {}).get("claims") or {}
     except Exception:
-        return []
+        return {}
 
 
 def _candidate_from_summary(summary: dict, entity_type: str, wikidata_id: str | None = None) -> CompanyCandidate | None:
@@ -473,6 +470,7 @@ def _resolved_from_candidate(
         domain=chosen.domain,
         industry=chosen.industry or chosen.description or None,
         headquarters=chosen.location,
+        details=chosen.details,
         company_type=chosen.company_type,
         entity_type=chosen.entity_type,
         identifiers={
@@ -498,11 +496,15 @@ async def _enrich_candidate(client: httpx.AsyncClient, summary: dict) -> Company
     extract = summary.get("extract") or ""
     text_type = _entity_type_from_text(title, description, extract)
     qid = summary.get("wikibase_item")
-    instance_ids = await _wikidata_instance_ids(client, qid) if qid else []
+    claims = await _wikidata_claims(client, qid) if qid else {}
+    instance_ids = [((claim.get("mainsnak", {}).get("datavalue") or {}).get("value") or {}).get("id")
+                    for claim in claims.get("P31", [])]
     entity_type = _entity_type_from_wikidata(instance_ids, text_type)
     candidate = _candidate_from_summary(summary, entity_type, qid)
     if candidate is None:
         return None
+    if claims and entity_type in SCOREABLE_TYPES:
+        candidate.details = company_details(claims, qid)
     candidate.wikidata_type = _entity_type_from_wikidata(instance_ids, "") or None
     return candidate
 
@@ -529,8 +531,8 @@ def _apply_gleif(resolved: ResolvedCompany, lookup) -> ResolvedCompany:
         aliases.append(selected.legal_name)
     resolved.aliases = aliases
     resolved.legal_name = selected.legal_name or resolved.legal_name
-    if selected.registered_address and not resolved.headquarters:
-        resolved.headquarters = selected.registered_address
+    if selected.headquarters_address:
+        resolved.headquarters = selected.headquarters_address
     if resolved.resolution_status != "resolved" and lookup.status == "live":
         resolved.resolution_status = "resolved"
         resolved.canonical_name = selected.legal_name
