@@ -53,6 +53,21 @@ function qualityLabel(value) {
 }
 
 export default function CompanySummary({ result }) {
+  const details = result.company?.details || {}
+  const headcount = details.employeeCount
+  const registry = result.company?.gleif?.selected
+  const addresses = new Map()
+  function addAddress(address, kind, source) {
+    if (!address) return
+    const key = address.trim().toLowerCase()
+    if (!addresses.has(key)) addresses.set(key, { address, records: [] })
+    addresses.get(key).records.push({ kind, source })
+  }
+  addAddress(registry?.registeredAddress, 'Registered office', registry?.sourceUrl)
+  addAddress(registry?.headquartersAddress, 'Headquarters', registry?.sourceUrl)
+  for (const address of details.streetAddresses || []) {
+    addAddress(address, 'Recorded street address', details.addressSource)
+  }
   const meta = result.meta || {}
   const nested = result.score || {}
   const rated = isRated(result)
@@ -95,6 +110,17 @@ export default function CompanySummary({ result }) {
             <p className="report-entity-type">SEC CIK {result.company.cik}{result.company.ticker ? ` · ${result.company.ticker}` : ''}</p>
           )}
           <p>{result.summary}</p>
+          <p><strong>Company employees</strong> · {headcount
+            ? <>{headcount.value.toLocaleString()} as of {headcount.asOf} (<a href={headcount.sourceUrl}>Wikidata record</a>)</>
+            : 'No dated, company-specific count available.'}</p>
+          <p><strong>Locations on record</strong> · {addresses.size
+            ? 'Available records may omit branches.'
+            : 'No addresses verified by the available sources.'}</p>
+          {Array.from(addresses.values()).map(({ address, records }) => (
+            <p key={address}>{address} · {records.map(({ kind, source }, i) => (
+              <span key={kind}>{i > 0 && ' / '}{source ? <a href={source}>{kind}</a> : kind}</span>
+            ))}</p>
+          ))}
           {result.resolution?.limited_identification && (
             <p className="report-note">Limited company identification. Remaining public signals were still scored.</p>
           )}
